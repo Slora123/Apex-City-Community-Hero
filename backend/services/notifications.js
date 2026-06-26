@@ -1,0 +1,91 @@
+'use strict';
+
+let io = null;
+
+function init(socketIoInstance) {
+  io = socketIoInstance;
+}
+
+/**
+ * Emit a new issue notification to all connected users in the same city
+ */
+function notifyNewIssue(issue, reporter) {
+  if (!io) return;
+  io.emit('new_issue', {
+    id: issue.id,
+    title: issue.title,
+    type: issue.type,
+    category: issue.category,
+    severity: issue.severity,
+    lat: issue.lat,
+    lng: issue.lng,
+    address: issue.address,
+    reporter: reporter ? reporter.name : 'Anonymous',
+    city: reporter ? reporter.city : '',
+    message: `📍 New ${issue.category} reported ${issue.address ? 'at ' + issue.address : 'nearby'}`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Emit issue resolved notification
+ */
+function notifyIssueResolved(issue, resolver) {
+  if (!io) return;
+  io.emit('issue_resolved', {
+    id: issue.id,
+    title: issue.title,
+    type: issue.type,
+    resolver: resolver ? resolver.name : 'A Hero',
+    message: `✅ ${issue.title} has been resolved by ${resolver ? resolver.name : 'a Community Hero'}!`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Emit XP award notification to a specific user
+ */
+function notifyXPAwarded(userId, amount, reason) {
+  if (!io) return;
+  io.to(`user:${userId}`).emit('xp_awarded', {
+    amount,
+    reason,
+    message: `🎉 +${amount} XP — ${reason}`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Emit achievement unlocked notification to a specific user
+ */
+function notifyAchievement(userId, badge) {
+  if (!io) return;
+  io.to(`user:${userId}`).emit('achievement_unlocked', {
+    badge,
+    message: `🏅 Achievement Unlocked: ${badge.name}`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * Emit community verification request to nearby users
+ */
+function notifyVerificationNeeded(issue) {
+  if (!io) return;
+  io.emit('verification_needed', {
+    issueId: issue.id,
+    title: issue.title,
+    address: issue.address,
+    message: `👀 Help verify: "${issue.title}" — has it been resolved?`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+module.exports = {
+  init,
+  notifyNewIssue,
+  notifyIssueResolved,
+  notifyXPAwarded,
+  notifyAchievement,
+  notifyVerificationNeeded
+};

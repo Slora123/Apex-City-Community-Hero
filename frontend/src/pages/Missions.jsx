@@ -1,0 +1,1193 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useGame } from '../context/GameContext';
+import BottomNav from '../components/BottomNav';
+import {
+  X,
+  Camera,
+  Compass,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Shield,
+  Award,
+  Navigation,
+  Check,
+  RefreshCw,
+  Eye,
+  AlertCircle
+} from 'lucide-react';
+
+/* ── CUSTOM CARTOON SVG ILLUSTRATIONS (BEFORE & AFTER STATES) ─────── */
+
+// 1. Pothole / Cracked Road Cartoon Illustration
+export const PotholeIllustration = ({ repaired = false }) => (
+  <svg viewBox="0 0 400 220" width="100%" height="100%" style={{ background: '#A1C78D', borderRadius: '8px' }}>
+    {/* Sky & Hills */}
+    <path d="M0,120 Q100,80 200,120 T400,120 L400,220 L0,220 Z" fill="#88B07D" />
+    <circle cx="320" cy="50" r="30" fill="#FFFBE6" opacity="0.9" />
+    <path d="M0,0 L400,0 L400,100 Q300,70 200,90 T0,80 Z" fill="#80B3FF" />
+    
+    {/* Road going into horizon */}
+    <path d="M160,110 L240,110 L350,220 L50,220 Z" fill="#5A6268" />
+    <path d="M200,110 L200,220" stroke="#FFD166" strokeWidth="4" strokeDasharray="12,12" />
+    
+    {/* Road Sign (Left Side) */}
+    <g transform="translate(70, 110)">
+      {/* Sign Post */}
+      <rect x="18" y="10" width="5" height="80" fill="#7D5C43" stroke="#4D331F" strokeWidth="1.5" />
+      
+      {!repaired ? (
+        /* Warning Sign (Exclamation Diamond) */
+        <g transform="translate(20, 20) rotate(45)">
+          <rect x="-20" y="-20" width="40" height="40" rx="4" fill="#FF8C00" stroke="#A84C00" strokeWidth="2" />
+          <g transform="rotate(-45)">
+            <rect x="-3" y="-12" width="6" height="15" rx="2" fill="#FFF" />
+            <circle cx="0" cy="8" r="3" fill="#FFF" />
+          </g>
+        </g>
+      ) : (
+        /* Green Resolved Sign (Checkmark Rectangle) */
+        <g transform="translate(20, 20)">
+          <rect x="-25" y="-16" width="50" height="32" rx="4" fill="#2E6B2A" stroke="#1C4519" strokeWidth="2" />
+          {/* White/light checkmark */}
+          <path d="M-10,0 L-3,7 L12,-8" fill="none" stroke="#FFF" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      )}
+    </g>
+
+    {!repaired ? (
+      /* Pothole & Cracks (Damaged state) */
+      <g>
+        <ellipse cx="200" cy="180" rx="45" ry="18" fill="#2E3236" />
+        <ellipse cx="198" cy="177" rx="38" ry="13" fill="#1A1C1E" />
+        {/* Crack lines */}
+        <path d="M160,180 L140,185 L130,182" stroke="#1A1C1E" strokeWidth="2.5" fill="none" />
+        <path d="M240,180 L265,182 L275,189" stroke="#1A1C1E" strokeWidth="2.5" fill="none" />
+      </g>
+    ) : (
+      /* Clean Paved Asphalt Patch (Repaired state) */
+      <g>
+        <ellipse cx="200" cy="180" rx="42" ry="16" fill="#444B50" stroke="#333" strokeWidth="1" />
+        <ellipse cx="199" cy="179" rx="39" ry="14" fill="#3E4448" />
+        {/* Subtle patch texture lines */}
+        <path d="M185,175 Q200,170 215,175" stroke="#5A6268" strokeWidth="1.5" strokeDasharray="3,3" fill="none" />
+      </g>
+    )}
+  </svg>
+);
+
+// 2. Ruptured Aqueduct / Water Leak Cartoon Illustration
+export const WaterLeakIllustration = ({ repaired = false }) => (
+  <svg viewBox="0 0 400 220" width="100%" height="100%" style={{ background: '#A1C78D', borderRadius: '8px' }}>
+    {/* Sky & Background */}
+    <path d="M0,0 L400,0 L400,120 Q300,90 200,100 T0,110 Z" fill="#80B3FF" />
+    <path d="M0,120 Q150,90 300,130 T400,120 L400,220 L0,220 Z" fill="#88B07D" />
+    
+    {/* Stone Aqueduct Arch */}
+    <g transform="translate(100, 70)">
+      {/* Pillars */}
+      <rect x="20" y="20" width="40" height="110" fill="#8E8F91" stroke="#4E4F51" strokeWidth="2" rx="4" />
+      <rect x="140" y="20" width="40" height="110" fill="#8E8F91" stroke="#4E4F51" strokeWidth="2" rx="4" />
+      {/* Arch Bridge Top */}
+      <rect x="0" y="0" width="200" height="35" fill="#A4A5A8" stroke="#4E4F51" strokeWidth="2" rx="4" />
+      <path d="M60,35 A40,40 0 0,1 140,35 Z" fill="#88B07D" stroke="#4E4F51" strokeWidth="2" />
+      
+      {/* Brick lines */}
+      <line x1="20" y1="50" x2="60" y2="50" stroke="#4E4F51" strokeWidth="1.5" />
+      <line x1="140" y1="70" x2="180" y2="70" stroke="#4E4F51" strokeWidth="1.5" />
+      
+      {!repaired ? (
+        /* The Leak / Water Spray (Damaged state) */
+        <g>
+          <path d="M40,65 Q-20,90 -10,140 Q15,120 40,80 Z" fill="#4CC9F0" opacity="0.85" />
+          <circle cx="-10" cy="130" r="6" fill="#FFF" opacity="0.8" />
+          <circle cx="-5" cy="140" r="4" fill="#FFF" opacity="0.9" />
+          <ellipse cx="30" cy="125" rx="35" ry="12" fill="#4CC9F0" opacity="0.9" />
+          {/* Cracked wall lines */}
+          <path d="M40,60 L32,65 L44,70" stroke="#222" strokeWidth="2.5" fill="none" />
+        </g>
+      ) : (
+        /* Fresh Mortar Repair Patch (Repaired state) */
+        <g>
+          <polygon points="30,55 50,58 45,72 28,68" fill="#B3A387" stroke="#4E4F51" strokeWidth="1.5" />
+          {/* Trowel marks */}
+          <path d="M32,62 Q40,60 46,64" stroke="#8B7E66" strokeWidth="1" fill="none" />
+        </g>
+      )}
+    </g>
+  </svg>
+);
+
+// 3. Broken Lantern / Light Cartoon Illustration
+export const BrokenLightIllustration = ({ repaired = false }) => (
+  <svg viewBox="0 0 400 220" width="100%" height="100%" style={{ background: '#3D348B', borderRadius: '8px' }}>
+    {/* Moon & Night Sky */}
+    <circle cx="300" cy="60" r="25" fill="#FFFBE6" opacity="0.8" />
+    <path d="M0,150 Q120,120 240,160 T400,150 L400,220 L0,220 Z" fill="#2E3A2F" />
+    
+    {/* Street Lantern Pole */}
+    <g transform="translate(180, 40)">
+      {/* Iron Pole */}
+      <rect x="18" y="30" width="6" height="150" fill="#4A4E69" stroke="#222" strokeWidth="2" />
+      {/* Hanging bracket */}
+      <path d="M24,50 Q45,30 45,55 L24,55" fill="none" stroke="#4A4E69" strokeWidth="3" />
+      
+      {/* Lantern housing */}
+      <polygon points="35,55 55,55 60,85 30,85" fill="#22223B" stroke="#222" strokeWidth="2" />
+      
+      {!repaired ? (
+        /* Broken glass and dead bulb (Damaged state) */
+        <g>
+          <polygon points="37,58 53,58 57,82 33,82" fill="#F4E8C1" opacity="0.15" />
+          <path d="M38,62 L48,70 L52,60" stroke="#FFF" strokeWidth="1.5" fill="none" opacity="0.6" />
+          <line x1="45" y1="55" x2="45" y2="85" stroke="#111" strokeWidth="2" />
+          <line x1="33" y1="75" x2="57" y2="68" stroke="#111" strokeWidth="2" />
+          <circle cx="45" cy="70" r="8" fill="#444" stroke="#222" strokeWidth="1.5" />
+        </g>
+      ) : (
+        /* Glowing yellow light source (Repaired state) */
+        <g>
+          {/* Radial Light Glow */}
+          <circle cx="45" cy="70" r="38" fill="#FFD166" opacity="0.4" />
+          <circle cx="45" cy="70" r="24" fill="#FFD166" opacity="0.6" />
+          {/* Intact glass casing */}
+          <polygon points="37,58 53,58 57,82 33,82" fill="#FFFBE6" opacity="0.4" />
+          {/* Shining Light Bulbs */}
+          <circle cx="45" cy="70" r="9" fill="#FFF" stroke="#FFD166" strokeWidth="1" />
+          {/* Light Rays */}
+          <line x1="45" y1="50" x2="45" y2="40" stroke="#FFD166" strokeWidth="2" />
+          <line x1="45" y1="90" x2="45" y2="100" stroke="#FFD166" strokeWidth="2" />
+          <line x1="25" y1="70" x2="15" y2="70" stroke="#FFD166" strokeWidth="2" />
+          <line x1="65" y1="70" x2="75" y2="70" stroke="#FFD166" strokeWidth="2" />
+        </g>
+      )}
+    </g>
+  </svg>
+);
+
+export default function Missions() {
+  const navigate = useNavigate();
+  const { addXp, missions, updateMissionStatus } = useGame();
+
+  // State Machine: 'list' | 'details' | 'capture_before' | 'capture_after' | 'verification' | 'success'
+  const [view, setView] = useState('list');
+  const [selectedMission, setSelectedMission] = useState(null);
+  const [severity, setSeverity] = useState('Medium');
+  const [gpsStatus, setGpsStatus] = useState('Connecting...');
+
+  // Verification results
+  const [resolutionStatus, setResolutionStatus] = useState('Fully Resolved');
+  const [earnedXp, setEarnedXp] = useState(0);
+
+  // Camera states & fallbacks
+  const [cameraStream, setCameraStream] = useState(null);
+  const [beforePhoto, setBeforePhoto] = useState(null);
+  const [afterPhoto, setAfterPhoto] = useState(null);
+  const [cameraError, setCameraError] = useState(false);
+  const [shutterFlash, setShutterFlash] = useState(false);
+
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+
+  // Initialize GPS connection simulation
+  useEffect(() => {
+    if (view === 'details') {
+      setGpsStatus('Connecting...');
+      const timer = setTimeout(() => {
+        setGpsStatus('Connected');
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
+
+  // Clean up camera stream when leaving camera views
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const startCamera = async () => {
+    setCameraError(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      setCameraStream(stream);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.warn("Camera access denied or unavailable, enabling simulated mockup camera.", err);
+      setCameraError(true);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCameraStream(null);
+  };
+
+  const handleOpenDetails = (mission) => {
+    setSelectedMission(mission);
+    if (mission.severity) {
+      setSeverity(mission.severity.charAt(0).toUpperCase() + mission.severity.slice(1));
+    } else {
+      setSeverity('Medium');
+    }
+    setView('details');
+  };
+
+  const handleStartVerification = async () => {
+    setView('capture_before');
+    await startCamera();
+  };
+
+  const handleCapturePhoto = () => {
+    // Shutter flash animation
+    setShutterFlash(true);
+    setTimeout(() => setShutterFlash(false), 1200);
+
+    if (view === 'capture_before') {
+      setBeforePhoto(true);
+      setTimeout(() => {
+        stopCamera();
+        setView('capture_after');
+        startCamera();
+      }, 1000);
+    } else if (view === 'capture_after') {
+      setAfterPhoto(true);
+      setTimeout(() => {
+        stopCamera();
+        // Shift to the verification slide instead of going straight to success!
+        setView('verification');
+      }, 1000);
+    }
+  };
+
+  // Resolution selection on the Verification Slide
+  const handleSelectResolution = (status) => {
+    const baseBounty = 0;
+    
+    setResolutionStatus(status);
+    if (status === 'Fully Resolved') {
+      setEarnedXp(baseBounty);
+      setView('success');
+    } else if (status === 'Partially Resolved') {
+      setEarnedXp(Math.round(baseBounty * 0.5)); // 50% reward
+      setView('success');
+    } else if (status === 'Not Resolved') {
+      // Return to details to recapture or cancel
+      setView('details');
+      setBeforePhoto(null);
+      setAfterPhoto(null);
+    }
+  };
+
+  const handleCompleteMission = () => {
+    addXp(earnedXp);
+    updateMissionStatus(selectedMission.id, 'completed');
+    setView('list');
+    navigate('/map');
+  };
+
+  const getIllustration = (type, repaired = false) => {
+    switch (type) {
+      case 'cracked_road':
+        return <PotholeIllustration repaired={repaired} />;
+      case 'water_leak':
+        return <WaterLeakIllustration repaired={repaired} />;
+      case 'broken_light':
+        return <BrokenLightIllustration repaired={repaired} />;
+      default:
+        return <PotholeIllustration repaired={repaired} />;
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#2D1B13',
+      backgroundImage: "url('/map_bg.png')",
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed',
+      padding: '24px 16px 100px 16px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: "'Inter', sans-serif",
+      color: '#F4E8C1',
+      boxSizing: 'border-box'
+    }}>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
+        
+        .medieval-font {
+          font-family: 'MedievalSharp', serif;
+        }
+
+        /* Wood panel dialog */
+        .wood-panel {
+          background-color: #3e2723;
+          background-image: url('/panel_bg.png');
+          background-size: 100% 100%;
+          border: 6px double #8B5E34;
+          border-radius: 16px;
+          box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+          padding: 28px 20px;
+          width: 100%;
+          max-width: 480px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
+
+        /* Stone Header Pill */
+        .stone-header {
+          position: absolute;
+          top: -24px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #7F7F7F;
+          background-image: linear-gradient(135deg, #8A8A8A 0%, #5E5E5E 100%);
+          border: 3px solid #3C3C3C;
+          border-radius: 12px;
+          padding: 10px 32px;
+          color: #FFF;
+          font-family: 'MedievalSharp', serif;
+          font-size: 1.4rem;
+          font-weight: 900;
+          text-shadow: 2px 2px 0 #000;
+          box-shadow: 0 5px 12px rgba(0,0,0,0.6);
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        /* Parchment Quest Card */
+        .parchment-card {
+          background: #F4E8C1;
+          border: 3px solid #5A4B3D;
+          border-radius: 12px;
+          color: #2D1B13;
+          padding: 16px;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          box-shadow: inset 0 0 15px rgba(139,94,52,0.2), 0 4px 8px rgba(0,0,0,0.3);
+          transition: transform 0.2s;
+        }
+        .parchment-card:active {
+          transform: scale(0.98);
+        }
+
+        /* Green medieval button */
+        .medieval-btn-green {
+          background: #2E6B2A;
+          color: #FFF;
+          font-family: 'MedievalSharp', serif;
+          font-weight: bold;
+          font-size: 1rem;
+          text-transform: uppercase;
+          border: 2px solid #1C4519;
+          border-radius: 6px;
+          padding: 8px 16px;
+          cursor: pointer;
+          box-shadow: 0 3px 0 #1C4519, 0 4px 8px rgba(0,0,0,0.4);
+          transition: all 0.1s;
+        }
+        .medieval-btn-green:active {
+          transform: translateY(2px);
+          box-shadow: 0 1px 0 #1C4519;
+        }
+
+        /* Brown medieval button */
+        .medieval-btn-brown {
+          background: #5C4033;
+          color: #F4E8C1;
+          font-family: 'MedievalSharp', serif;
+          font-weight: bold;
+          font-size: 1rem;
+          text-transform: uppercase;
+          border: 2px solid #3E2D24;
+          border-radius: 6px;
+          padding: 8px 16px;
+          cursor: pointer;
+          box-shadow: 0 3px 0 #3E2D24, 0 4px 8px rgba(0,0,0,0.4);
+          transition: all 0.1s;
+        }
+        .medieval-btn-brown:active {
+          transform: translateY(2px);
+          box-shadow: 0 1px 0 #3E2D24;
+        }
+
+        /* Severity Slider */
+        .slider-track {
+          width: 100%;
+          height: 16px;
+          background: #5C4033;
+          border: 2.5px solid #2E2018;
+          border-radius: 99px;
+          position: relative;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          margin: 10px 0;
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .slider-segments {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          width: 100%;
+        }
+        .slider-segment {
+          flex: 1;
+          height: 100%;
+          border-right: 2.5px solid #2E2018;
+        }
+        .slider-segment:last-child {
+          border-right: none;
+        }
+        .slider-thumb {
+          position: absolute;
+          width: 26px;
+          height: 26px;
+          background: #D4AF37;
+          background-image: radial-gradient(circle, #FFF2A3 0%, #D4AF37 80%);
+          border: 2.5px solid #2E2018;
+          border-radius: 50%;
+          top: -7px;
+          box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+          transition: left 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        /* Live GPS Pill */
+        .gps-pill {
+          background: rgba(46, 26, 10, 0.12);
+          border: 2.5px solid #5A4B3D;
+          border-radius: 99px;
+          padding: 6px 16px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: bold;
+          font-size: 0.95rem;
+        }
+        .gps-pulse {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #2E6B2A;
+          box-shadow: 0 0 8px #2E6B2A;
+          animation: pulse 1.6s infinite ease-in-out;
+        }
+        @keyframes pulse {
+          0% { transform: scale(0.9); opacity: 0.5; }
+          50% { transform: scale(1.3); opacity: 1; }
+          100% { transform: scale(0.9); opacity: 0.5; }
+        }
+
+        /* Camera Viewfinder framing corners */
+        .viewfinder-corner {
+          position: absolute;
+          width: 24px;
+          height: 24px;
+          border-color: #FFF;
+          border-style: solid;
+        }
+        .vf-top-left { top: 16px; left: 16px; border-width: 4px 0 0 4px; border-top-left-radius: 6px; }
+        .vf-top-right { top: 16px; right: 16px; border-width: 4px 4px 0 0; border-top-right-radius: 6px; }
+        .vf-bottom-left { bottom: 16px; left: 16px; border-width: 0 0 4px 4px; border-bottom-left-radius: 6px; }
+        .vf-bottom-right { bottom: 16px; right: 16px; border-width: 0 4px 4px 0; border-bottom-right-radius: 6px; }
+
+        /* Shutter animation flash overlay */
+        .shutter-flash-overlay {
+          position: absolute;
+          inset: 0;
+          background: #FFF;
+          z-index: 9999;
+          opacity: 0;
+          pointer-events: none;
+          animation: flashAnimation 1.2s ease-out;
+        }
+        @keyframes flashAnimation {
+          0% { opacity: 0.95; }
+          10% { opacity: 0.95; }
+          100% { opacity: 0; }
+        }
+
+        /* Verification Screen stacked buttons */
+        .verification-action-btn {
+          width: 100%;
+          padding: 14px;
+          font-family: 'MedievalSharp', serif;
+          font-weight: 900;
+          font-size: 1.25rem;
+          text-transform: uppercase;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.1s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 12px;
+          touch-action: manipulation;
+        }
+        .verification-action-btn:active {
+          transform: translateY(3px);
+          box-shadow: none;
+        }
+        .verification-btn-resolved {
+          background: #2E6B2A;
+          color: #FFF;
+          border: 3px solid #1C4519;
+          box-shadow: 0 4px 0 #1C4519, 0 5px 10px rgba(0,0,0,0.5);
+        }
+        .verification-btn-partial {
+          background: #D47A2A;
+          color: #FFF;
+          border: 3px solid #9C512A;
+          box-shadow: 0 4px 0 #9C512A, 0 5px 10px rgba(0,0,0,0.5);
+        }
+        .verification-btn-not {
+          background: #B53F3F;
+          color: #FFF;
+          border: 3px solid #7E2A2A;
+          box-shadow: 0 4px 0 #7E2A2A, 0 5px 10px rgba(0,0,0,0.5);
+        }
+      `}</style>
+
+      {/* ── VIEW 1: MISSION CENTER (LIST) ─────────────────────────── */}
+      {view === 'list' && (
+        <div className="wood-panel" style={{ marginTop: '30px' }}>
+          <div className="stone-header">
+            <span>Mission Center</span>
+          </div>
+
+          <button
+            onClick={() => navigate('/map')}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: '#C4A484',
+              cursor: 'pointer',
+              outline: 'none'
+            }}
+          >
+            <X size={26} />
+          </button>
+
+          <h3 className="medieval-font" style={{
+            color: '#D4AF37',
+            fontSize: '1.25rem',
+            textAlign: 'center',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            margin: '15px 0 20px 0',
+            textShadow: '1px 1px 0 #000'
+          }}>
+            Quest Cards
+          </h3>
+
+          <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+            {missions.filter(m => m.status !== 'completed').map(m => (
+              <div key={m.id} className="parchment-card">
+                <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
+                  {getIllustration(m.type, false)}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {m.title}
+                  </h4>
+                  <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px' }}>
+                    Distance: 2.50mi, Severity: {m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Med'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 800, marginTop: '6px' }}>
+                    <Award size={14} />
+                    <span>Reward: 0 XP</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleOpenDetails(m)}
+                  className="medieval-btn-green"
+                  style={{ flexShrink: 0 }}
+                >
+                  Accept
+                </button>
+              </div>
+            ))}
+
+            {missions.filter(m => m.status !== 'completed').length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic' }}>
+                All petitions resolved! Return to the Map to report new anomalies.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEW 2: MISSION DETAILS SCREEN ────────────────────────── */}
+      {view === 'details' && selectedMission && (
+        <div className="wood-panel" style={{ marginTop: '30px', padding: '24px 18px 0 18px' }}>
+          <div className="stone-header">
+            <span>Mission Details Screen</span>
+          </div>
+
+          <button
+            onClick={() => setView('list')}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: '#C4A484',
+              cursor: 'pointer',
+              outline: 'none',
+              zIndex: 10
+            }}
+          >
+            <X size={26} />
+          </button>
+
+          <div style={{
+            background: '#F4E8C1',
+            borderRadius: '10px 10px 0 0',
+            color: '#2D1B13',
+            padding: '16px 16px 24px 16px',
+            boxShadow: 'inset 0 0 15px rgba(139,94,52,0.2)'
+          }}>
+            <h3 className="medieval-font" style={{
+              fontSize: '1.4rem',
+              fontWeight: 900,
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              margin: '10px 0 16px 0',
+              color: '#3C2D24'
+            }}>
+              {selectedMission.title.toUpperCase()}
+            </h3>
+
+            <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px' }}>
+              {getIllustration(selectedMission.type, false)}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', fontWeight: 600, padding: '0 4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                <span>Original upload image</span>
+                <span style={{ color: '#8B5E34', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Compass size={15} />
+                  <span>View</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                <span>Community Comments</span>
+                <span>12</span>
+              </div>
+
+              <div style={{ marginTop: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Severity Meter</span>
+                  <span style={{
+                    color: severity === 'High' ? '#B53F3F' : severity === 'Medium' ? '#9C512A' : '#5D8A46',
+                    fontWeight: 900,
+                    fontSize: '0.95rem'
+                  }}>
+                    {severity}
+                  </span>
+                </div>
+
+                <div className="slider-track" onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickX = e.clientX - rect.left;
+                  const ratio = clickX / rect.width;
+                  if (ratio < 0.33) setSeverity('Low');
+                  else if (ratio < 0.66) setSeverity('Medium');
+                  else setSeverity('High');
+                }}>
+                  <div className="slider-segments">
+                    <div className="slider-segment" />
+                    <div className="slider-segment" />
+                    <div className="slider-segment" />
+                  </div>
+                  <div
+                    className="slider-thumb"
+                    style={{
+                      left: severity === 'High' ? 'calc(83.33% - 13px)' : severity === 'Medium' ? 'calc(50% - 13px)' : 'calc(16.66% - 13px)'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                <span>GPS Status</span>
+                <div className="gps-pill">
+                  {gpsStatus === 'Connected' && <div className="gps-pulse" />}
+                  <span style={{ color: gpsStatus === 'Connected' ? '#2E6B2A' : '#8B5E34' }}>
+                    {gpsStatus}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            background: '#2D1B13',
+            margin: '0 -20px -28px -20px',
+            padding: '16px 20px 24px 20px',
+            borderRadius: '0 0 10px 10px',
+            borderTop: '3.5px solid #5C4033',
+            display: 'flex',
+            gap: '10px'
+          }}>
+            <button
+              onClick={() => navigate('/map')}
+              className="medieval-btn-brown"
+              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Navigation size={15} />
+              <span>Navigate</span>
+            </button>
+            <button
+              onClick={handleStartVerification}
+              className="medieval-btn-green"
+              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Check size={15} />
+              <span>Verify</span>
+            </button>
+            <button
+              onClick={handleStartVerification}
+              className="medieval-btn-green"
+              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+            >
+              <Shield size={15} />
+              <span>Solve</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEWS 3 & 4: CAMERA CAPTURE (BEFORE & AFTER) ──────────────── */}
+      {(view === 'capture_before' || view === 'capture_after') && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: '#000',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          fontFamily: "'MedievalSharp', serif",
+        }}>
+          {/* Shutter flash overlay effect */}
+          {shutterFlash && <div className="shutter-flash-overlay" />}
+
+          {/* Top Bar */}
+          <div style={{
+            width: '100%',
+            height: '64px',
+            background: 'rgba(10, 6, 4, 0.85)',
+            borderBottom: '2px solid #5C4033',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px',
+            boxSizing: 'border-box',
+            color: '#F4E8C1'
+          }}>
+            <button
+              onClick={() => {
+                stopCamera();
+                setView('details');
+              }}
+              style={{ background: 'transparent', border: 'none', color: '#F4E8C1', cursor: 'pointer' }}
+            >
+              <X size={26} />
+            </button>
+
+            <span style={{ fontSize: '1.25rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              {view === 'capture_before' ? 'Capture BEFORE Photo' : 'Capture AFTER Photo'}
+            </span>
+
+            <button
+              onClick={startCamera}
+              style={{ background: 'transparent', border: 'none', color: '#F4E8C1', cursor: 'pointer' }}
+              title="Reset Camera"
+            >
+              <RefreshCw size={22} />
+            </button>
+          </div>
+
+          {/* Viewfinder Bounding Area */}
+          <div style={{
+            flex: 1,
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '360px',
+              aspectRatio: '1',
+              border: '3px solid #5C4033',
+              borderRadius: '8px',
+              position: 'relative',
+              overflow: 'hidden',
+              background: '#2D1B13',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.8)'
+            }}>
+              {!cameraError && cameraStream ? (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ width: '100%', height: '100%' }}>
+                    {selectedMission && getIllustration(selectedMission.type, view === 'capture_after')}
+                  </div>
+
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(45, 27, 19, 0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFF',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    textAlign: 'center',
+                    padding: '20px',
+                    textShadow: '2px 2px 4px #000'
+                  }}>
+                    <span>[ Simulated Viewfinder ]<br />Click shutter below to capture</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="viewfinder-corner vf-top-left" />
+              <div className="viewfinder-corner vf-top-right" />
+              <div className="viewfinder-corner vf-bottom-left" />
+              <div className="viewfinder-corner vf-bottom-right" />
+            </div>
+          </div>
+
+          {/* Shutter Button Footer */}
+          <div style={{
+            width: '100%',
+            height: '140px',
+            background: 'rgba(10, 6, 4, 0.9)',
+            borderTop: '2px solid #5C4033',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px'
+          }}>
+            <span style={{ fontSize: '0.85rem', color: '#B3A387', letterSpacing: '0.5px' }}>
+              {view === 'capture_before' ? 'Capture the damaged anomaly' : 'Capture the resolved issue'}
+            </span>
+
+            <button
+              onClick={handleCapturePhoto}
+              style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '50%',
+                background: '#FFF',
+                border: '6px solid #4A4E69',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'transform 0.1s'
+              }}
+              className="shutter-btn"
+              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.92)'}
+              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW VIEW 5: VERIFICATION SLIDE ────────────────────────── */}
+      {view === 'verification' && selectedMission && (
+        <div className="wood-panel" style={{ marginTop: '30px', padding: '24px 16px 20px 16px' }}>
+          {/* Carved stone title header */}
+          <div className="stone-header">
+            <span>Verification</span>
+          </div>
+
+          {/* Close button top-right */}
+          <button
+            onClick={() => setView('details')}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: '#C4A484',
+              cursor: 'pointer',
+              outline: 'none',
+              zIndex: 10
+            }}
+          >
+            <X size={26} />
+          </button>
+
+          {/* Before / After side-by-side photo comparison */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            width: '100%',
+            marginBottom: '20px',
+            marginTop: '10px'
+          }}>
+            {/* Before Photo Card */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 900, color: '#D4AF37', marginBottom: '6px', textShadow: '1px 1px 0 #000' }}>
+                Before
+              </span>
+              <div style={{
+                width: '100%',
+                aspectRatio: '0.95',
+                background: '#F4E8C1',
+                border: '3px solid #5A4B3D',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {getIllustration(selectedMission.type, false)}
+              </div>
+            </div>
+
+            {/* After Photo Card */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 900, color: '#D4AF37', marginBottom: '6px', textShadow: '1px 1px 0 #000' }}>
+                After
+              </span>
+              <div style={{
+                width: '100%',
+                aspectRatio: '0.95',
+                background: '#F4E8C1',
+                border: '3px solid #5A4B3D',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {getIllustration(selectedMission.type, true)}
+              </div>
+            </div>
+          </div>
+
+          {/* Stacked Medieval Verification Buttons */}
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', padding: '0 4px' }}>
+            {/* 1. Fully Resolved Button */}
+            <button
+              onClick={() => handleSelectResolution('Fully Resolved')}
+              className="verification-action-btn verification-btn-resolved"
+            >
+              Fully Resolved
+            </button>
+
+            {/* 2. Partially Resolved Button */}
+            <button
+              onClick={() => handleSelectResolution('Partially Resolved')}
+              className="verification-action-btn verification-btn-partial"
+            >
+              Partially Resolved
+            </button>
+
+            {/* 3. Not Resolved Button */}
+            <button
+              onClick={() => handleSelectResolution('Not Resolved')}
+              className="verification-action-btn verification-btn-not"
+            >
+              Not Resolved
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEW 6: VICTORY / SUCCESS OVERLAY ─────────────────────── */}
+      {view === 'success' && selectedMission && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(10, 6, 4, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            maxWidth: '440px',
+            width: '100%',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '20px',
+            background: '#F5E6C4',
+            border: '6px double #5C4033',
+            borderRadius: '12px',
+            color: '#3e2723',
+            padding: '40px 32px',
+            boxShadow: '0 15px 40px rgba(0,0,0,0.8), inset 0 0 45px rgba(139,94,52,0.18)',
+            boxSizing: 'border-box',
+            fontFamily: "'MedievalSharp', serif"
+          }}>
+            {/* Victory Badge */}
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: resolutionStatus === 'Fully Resolved' ? '#2E6B2A' : '#D47A2A',
+              border: '2px double #D4AF37',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFF',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.4)',
+              transform: 'rotate(-5deg)'
+            }}>
+              <CheckCircle size={32} />
+            </div>
+
+            {/* Title */}
+            <h2 style={{ fontSize: '1.8rem', color: '#2E2018', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Quest Accomplished!
+            </h2>
+
+            {/* Subtitle / Status indicator */}
+            <div style={{
+              fontSize: '1rem',
+              fontWeight: 900,
+              color: resolutionStatus === 'Fully Resolved' ? '#2E6B2A' : '#9C512A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Verification Status: {resolutionStatus}
+            </div>
+
+            {/* Description */}
+            <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
+              {resolutionStatus === 'Fully Resolved'
+                ? "Outstanding work, Guild Member! The anomaly has been fully repaired. The scrolls have been permanently archived."
+                : "Good effort! The anomaly has been partially addressed. Artisans will monitor the remaining issues."}
+            </p>
+
+            {/* XP Award Pill */}
+            <div style={{
+              background: 'rgba(46, 26, 10, 0.08)',
+              border: '2px dashed #4A3B32',
+              borderRadius: '10px',
+              padding: '12px',
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              boxSizing: 'border-box'
+            }}>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2E6B2A' }}>
+                +{earnedXp} XP
+              </span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#3C2D24', textTransform: 'uppercase' }}>Civic Bounty Awarded</div>
+                <div style={{ fontSize: '0.75rem', color: '#5C4A38' }}>Ledger updated with experiences!</div>
+              </div>
+            </div>
+
+            {/* Return button */}
+            <button
+              onClick={handleCompleteMission}
+              style={{
+                width: '100%',
+                background: '#2E6B2A',
+                border: '2px solid #1c4519',
+                borderRadius: '8px',
+                color: '#FFF',
+                fontWeight: 'bold',
+                padding: '14px',
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+                boxShadow: '0 3px 6px rgba(0,0,0,0.3)',
+                marginTop: '12px'
+              }}
+            >
+              Return to Map
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── HIDDEN FILE & VIDEO INPUTS FOR THE CAMERA VIEWS ──────── */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={(e) => {
+          const file = e.target.files[0];
+          if (file) {
+            handleCapturePhoto();
+          }
+        }}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
+
+      <input
+        type="file"
+        ref={videoInputRef}
+        onChange={(e) => {
+          const file = e.target.files[0];
+          if (file) {
+            handleCapturePhoto();
+          }
+        }}
+        accept="video/*"
+        capture="environment"
+        style={{ display: 'none' }}
+      />
+
+      {(view === 'list' || view === 'details') && <BottomNav />}
+
+    </div>
+  );
+}

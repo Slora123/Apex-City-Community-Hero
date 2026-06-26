@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Cobblestone — A Toon City Walk</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #cdeaff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    #canvas-wrap {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      touch-action: none;
+    }
+
+    #hud {
+      display: none;
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      background: rgba(40, 30, 20, 0.55);
+      color: #fff3df;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      max-width: 230px;
+      pointer-events: none;
+    }
+
+    #hud b {
+      color: #ffd479;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      background: linear-gradient(160deg, #fef6e4, #cdeaff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      transition: opacity 0.6s ease;
+    }
+
+    #loading h1 {
+      font-size: 22px;
+      color: #5b4636;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    #loading p {
+      color: #8a7560;
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      margin-bottom: 18px;
+      border: 4px solid #e3c9a0;
+      border-top-color: #b5793a;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #compass {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      z-index: 10;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(40, 30, 20, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      pointer-events: none;
+    }
+
+    /* Joystick styles only */
+
+/* Joystick styles removed */
+
+    .view-toggle-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 140px;
+      height: 42px;
+      border-radius: 21px;
+      background: rgba(40, 30, 20, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(255, 212, 121, 0.45);
+      color: #ffd479;
+      font-size: 14px;
+      font-family: 'Georgia', serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 105;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: background 0.2s, border-color 0.2s, transform 0.1s;
+    }
+
+    .view-toggle-btn:hover {
+      background: rgba(60, 45, 30, 0.85);
+      border-color: rgba(255, 212, 121, 0.7);
+      transform: scale(1.05);
+    }
+
+    .view-toggle-btn:active {
+      transform: scale(0.95);
+    }
+  </style>
+</head>
+
+<body>
+  <div id="canvas-wrap">
+    <div id="loading">
+      <div class="spinner"></div>
+    </div>
+    <div id="hud">
+      <b>Click anywhere</b> on the ground to walk there.<br>
+      Drag with the <b>right mouse button</b> to look around.<br>
+      Scroll to zoom.<br>
+      Explore the market square, the outlying districts, and the castle gate to the north.
+    </div>
+<!-- Joystick HTML removed -->
+    
+    <button id="btn-view-mode" class="view-toggle-btn">👤 Third Person</button>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+  <script>
+    const ASSET_BASE64 = {}; // Extracted to /assets/*.glb
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+
+
+    /* ============================================================
+       GLB ASSET LOADING & TEMPLATE NORMALIZATION
+       ------------------------------------------------------------
+       Every uploaded GLB is loaded once into a normalized "template"
+       (re-scaled to a known real-world footprint, re-centered on X/Z,
+       and dropped to sit flush on y=0). Every placement in the city
+       then *clones* that template — THREE.Object3D#clone() shares the
+       underlying geometry/material buffers by reference, so cloning is
+       effectively GPU-cheap instancing, not a fresh geometry build.
+       ============================================================ */
+    const gltfLoader = new GLTFLoader();
+
+    function normalizeTemplate(root, targetSize, opts = {}) {
+      root.updateMatrixWorld(true);
+      
+      // Calculate bounding box based ONLY on actual mesh geometries to avoid skeleton/bone bugs
+      let box = new THREE.Box3();
+      let hasMesh = false;
+      root.traverse(n => {
+        if (n.isMesh && !n.userData.isOutline) {
+          if (!n.geometry.boundingBox) n.geometry.computeBoundingBox();
+          
+          // Get local bounding box
+          const localBox = n.geometry.boundingBox.clone();
+          n.updateMatrixWorld(true);
+          
+          // Compute relative matrix from root to mesh
+          const relativeMat = new THREE.Matrix4();
+          relativeMat.copy(n.matrixWorld);
+          const invRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+          relativeMat.premultiply(invRoot);
+          
+          localBox.applyMatrix4(relativeMat);
+          
+          if (!hasMesh) {
+            box.copy(localBox);
+            hasMesh = true;
+          } else {
+            box.union(localBox);
+          }
+        }
+      });
+      
+      if (!hasMesh) {
+        box.setFromObject(root);
+      }
+
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      
+      // For character GLBs, scale by height. For buildings/trees, scale by horizontal footprint.
+      const divisor = opts.isCharacter ? (size.y || 1) : (Math.max(size.x, size.z) || 1);
+      const scale = targetSize / divisor;
+      
+      root.scale.setScalar(scale);
+      root.updateMatrixWorld(true);
+
+      // Scale the bounding box accordingly
+      box.min.multiplyScalar(scale);
+      box.max.multiplyScalar(scale);
+      box.getSize(size);
+
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+
+      // Create a wrapper Group to center the template correctly and preserve the base offset (feet on ground)
+      const wrapper = new THREE.Group();
+      wrapper.add(root);
+      root.position.set(-center.x, -box.min.y, -center.z);
+      wrapper.updateMatrixWorld(true);
+
+      // Recompute wrapper bounds for footprint registry
+      let wrapperBox = new THREE.Box3();
+      let hasWrapperMesh = false;
+      wrapper.traverse(n => {
+        if (n.isMesh && !n.userData.isOutline) {
+          const localBox = n.geometry.boundingBox.clone();
+          n.updateMatrixWorld(true);
+          const relativeMat = new THREE.Matrix4().copy(n.matrixWorld);
+          const invWrapper = new THREE.Matrix4().copy(wrapper.matrixWorld).invert();
+          relativeMat.premultiply(invWrapper);
+          localBox.applyMatrix4(relativeMat);
+          
+          if (!hasWrapperMesh) {
+            wrapperBox.copy(localBox);
+            hasWrapperMesh = true;
+          } else {
+            wrapperBox.union(localBox);
+          }
+        }
+      });
+      
+      if (!hasWrapperMesh) {
+        wrapperBox.setFromObject(wrapper);
+      }
+      
+      const finalSize = new THREE.Vector3();
+      wrapperBox.getSize(finalSize);
+
+      wrapper.traverse(n => {
+        if (n.isMesh && !n.userData.isOutline) {
+          n.castShadow = true;
+          n.receiveShadow = true;
+          if (opts.outline) addOutline(n, opts.outlineThickness ?? 0.02, opts.outlineColor ?? 0x1c1410);
+        }
+      });
+
+      const margin = opts.margin ?? 0;
+      wrapper.userData.footprint = { w: finalSize.x + margin, d: finalSize.z + margin };
+      wrapper.userData.height = finalSize.y;
+      wrapper.userData.isCharacter = opts.isCharacter || false;
+      return wrapper;
+    }
+
+    function spawnFromTemplate(template, { scaleJitter = 0.1 } = {}) {
+      const inst = template.userData.isCharacter ? SkeletonUtils.clone(template) : template.clone(true);
+      const s = 1 + (Math.random() * 2 - 1) * scaleJitter;
+      inst.scale.multiplyScalar(s);
+      inst.userData.footprint = {
+        w: template.userData.footprint.w * s,
+        d: template.userData.footprint.d * s
+      };
+      return inst;
+    }
+
+    
+
+    function loadTemplate(key, targetSize, opts) {
+      return new Promise((resolve, reject) => {
+        gltfLoader.load('/assets/' + key + '.glb', (gltf) => {
+          resolve(normalizeTemplate(gltf.scene, targetSize, opts));
+        }, undefined, reject);
+      });
+    }
+
+    // Trees.glb bundles five separate tree nodes in one file — split them out
+    // into five independent templates so the tree pool has real variety.
+    async function loadTreeVariants() {
+      const gltf = await new Promise((resolve, reject) => {
+        gltfLoader.load('/assets/trees.glb', resolve, undefined, reject);
+      });
+      // The trees GLB contains a single RootNode which houses the 5 individual tree models as its children.
+      // We extract the children of the RootNode so we can register and spawn them as individual templates.
+      const rootNode = gltf.scene.children[0];
+      const kids = (rootNode && rootNode.children.length > 0) ? [...rootNode.children] : [...gltf.scene.children];
+      return kids.map((kid, i) => {
+        if (kid.parent) kid.parent.remove(kid);
+        return normalizeTemplate(kid, 15.0 + i * 1.5, { outline: true, outlineThickness: 0.025, margin: 0.3 });
+      });
+    }
+
+    function buildProceduralNPC(colorHex) {
+      const group = new THREE.Group();
+      const skin = new THREE.MeshToonMaterial({ color: 0xf6d2ae, gradientMap: rampTex });
+      const clothes = new THREE.MeshToonMaterial({ color: colorHex, gradientMap: rampTex });
+      
+      // torso
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.4, 4, 8), clothes);
+      torso.position.y = 0.5;
+      group.add(torso);
+      
+      // head
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), skin);
+      head.position.y = 0.85;
+      group.add(head);
+      
+      // hair
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10), new THREE.MeshToonMaterial({ color: 0x5c4033, gradientMap: rampTex }));
+      hair.position.set(0, 0.9, -0.02);
+      group.add(hair);
+      
+      // legs
+      const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4), clothes);
+      leg1.position.set(-0.08, 0.2, 0);
+      const leg2 = leg1.clone();
+      leg2.position.x = 0.08;
+      group.add(leg1, leg2);
+      
+      group.castShadow = true;
+      group.receiveShadow = true;
+      group.userData.footprint = { w: 0.5, d: 0.5 };
+      group.userData.isCharacter = true;
+      return group;
+    }
+
+    function loadTemplateFromFile(url, targetSize, fallbackColor) {
+      return new Promise((resolve) => {
+        gltfLoader.load(url, (gltf) => {
+          resolve(normalizeTemplate(gltf.scene, targetSize, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }));
+        }, undefined, (err) => {
+          console.warn('Failed to load GLB ' + url + ', using procedural fallback.', err);
+          resolve(buildProceduralNPC(fallbackColor));
+        });
+      });
+    }
+
+    async function loadAllTemplates() {
+      const [
+        house1, house2, house3, house4, house5, shop1,
+        marketStalls, fountain, wishingWell,
+        castleGate, fortress, archway,
+        pineTrees, tree, barrierTrash, treeVariants,
+        women1, women2, women3,
+        man1, man2, man3
+      ] = await Promise.all([
+        loadTemplate('house1', 7.5, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('house2', 6.5, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('house3', 8.5, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('house4', 7.5, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('house5', 7.2, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('shop1', 5.5, { outline: true, outlineThickness: 0.018, margin: 0.8 }),
+        loadTemplate('marketStalls', 5.5, { outline: true, outlineThickness: 0.015, margin: 0.6 }),
+        loadTemplate('fountain', 6, { outline: true, outlineThickness: 0.02, margin: 0.4 }),
+        loadTemplate('wishingWell', 2.4, { outline: true, outlineThickness: 0.015, margin: 0.4 }),
+        loadTemplate('castleGate', 26, { outline: true, outlineThickness: 0.01, margin: 1.5 }),
+        loadTemplate('fortress', 34, { outline: true, outlineThickness: 0.01, margin: 1.5 }),
+        loadTemplate('archway', 16, { outline: true, outlineThickness: 0.012, margin: 1.0 }),
+        loadTemplate('pineTrees', 22.0, { outline: true, outlineThickness: 0.02, margin: 0.3 }),
+        loadTemplate('tree', 20.0, { outline: true, outlineThickness: 0.02, margin: 0.3 }),
+        loadTemplate('barrierTrash', 1.8, { outline: true, outlineThickness: 0.03, margin: 0.2 }),
+        loadTreeVariants(),
+        normalizeTemplate(buildProceduralNPC(0xe74c3c), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }),
+        normalizeTemplate(buildProceduralNPC(0x9b59b6), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }),
+        normalizeTemplate(buildProceduralNPC(0x3498db), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }),
+        normalizeTemplate(buildProceduralNPC(0x2ecc71), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }),
+        normalizeTemplate(buildProceduralNPC(0xf1c40f), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true }),
+        normalizeTemplate(buildProceduralNPC(0xe67e22), 1.8, { outline: true, outlineThickness: 0.02, margin: 0.2, isCharacter: true })
+      ]);
+      return {
+        housePool: [house1, house2, house3, house4, house5, shop1],
+        marketStalls, fountain, wishingWell, castleGate, fortress, archway,
+        pineTrees,
+        treePool: [pineTrees, tree, ...treeVariants],
+        barrierTrash,
+        citizens: { women1, women2, women3, man1, man2, man3 }
+      };
+    }
+
+
+    /* ============================================================
+       COBBLESTONE — a toon-shaded click-to-move city walk
+       ============================================================ */
+
+    const wrap = document.getElementById('canvas-wrap');
+
+    // ---------- Renderer / Scene / Camera ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    wrap.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const skyTop = new THREE.Color('#7fc4ff');
+    const skyBot = new THREE.Color('#dff3ff');
+    scene.background = skyTop;
+    scene.fog = new THREE.Fog(0xcfe9ff, 60, 220);
+
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 500);
+
+    // ---------- Sky gradient dome ----------
+    {
+      const skyGeo = new THREE.SphereGeometry(300, 32, 16);
+      const skyMat = new THREE.ShaderMaterial({
+        uniforms: { top: { value: skyTop }, bot: { value: skyBot } },
+        vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+        fragmentShader: `
+      varying vec3 vPos; uniform vec3 top; uniform vec3 bot;
+      void main(){
+        float h = normalize(vPos).y * 0.5 + 0.5;
+        gl_FragColor = vec4(mix(bot, top, pow(h, 0.55)), 1.0);
+      }`,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      scene.add(new THREE.Mesh(skyGeo, skyMat));
+    }
+
+    // ---------- Toon ramp texture for cel shading ----------
+    function makeRampTexture() {
+      const c = document.createElement('canvas'); c.width = 64; c.height = 1;
+      const ctx = c.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 64, 0);
+      grad.addColorStop(0.0, '#46474f');
+      grad.addColorStop(0.35, '#8d7e8a');
+      grad.addColorStop(0.55, '#cfc2b8');
+      grad.addColorStop(1.0, '#fff6e6');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 1);
+      const tex = new THREE.CanvasTexture(c);
+      tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter;
+      return tex;
+    }
+    const rampTex = makeRampTexture();
+
+    function toonMat(color, opts = {}) {
+      return new THREE.MeshToonMaterial({ color, gradientMap: rampTex, ...opts });
+    }
+
+    // ---------- Lighting ----------
+    const hemi = new THREE.HemisphereLight(0xffe9c7, 0x6b7a5e, 0.9);
+    scene.add(hemi);
+
+    const sun = new THREE.DirectionalLight(0xfff1d6, 2.0);
+    sun.position.set(40, 60, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -90; sun.shadow.camera.right = 90;
+    sun.shadow.camera.top = 90; sun.shadow.camera.bottom = -90;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 220;
+    sun.shadow.bias = -0.0006;
+    scene.add(sun);
+
+    const fillLight = new THREE.DirectionalLight(0xbfd9ff, 0.35);
+    fillLight.position.set(-30, 20, -30);
+    scene.add(fillLight);
+
+    // ============================================================
+    // OUTLINE HELPER (backface-extrusion technique — cheap toon outline)
+    // ============================================================
+    function addOutline(mesh, thickness = 0.025, color = 0x1c1410) {
+      const outlineMat = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+      const outline = new THREE.Mesh(mesh.geometry, outlineMat);
+      outline.scale.multiplyScalar(1 + thickness);
+      outline.renderOrder = -1;
+      outline.userData.isOutline = true; // flag to prevent recursive outlines
+      mesh.add(outline);
+      return outline;
+    }
+
+    async function buildWorld() {
+      const loadingEl = document.getElementById('loading');
+      const templates = await loadAllTemplates();
+      const busyCitizens = [];
+
+      // ---- spawn functions: every call below clones a normalized template ----
+      function spawnHouse() {
+        const pool = templates.housePool;
+        return spawnFromTemplate(pool[Math.floor(Math.random() * pool.length)], { scaleJitter: 0.12 });
+      }
+      function spawnMarketStall() {
+        return spawnFromTemplate(templates.marketStalls, { scaleJitter: 0.1 });
+      }
+      function spawnFountain() {
+        return spawnFromTemplate(templates.fountain, { scaleJitter: 0.04 });
+      }
+      function spawnWishingWell() {
+        return spawnFromTemplate(templates.wishingWell, { scaleJitter: 0.06 });
+      }
+      function spawnTree(scale = 1) {
+        const pool = templates.treePool;
+        const inst = spawnFromTemplate(pool[Math.floor(Math.random() * pool.length)], { scaleJitter: 0 });
+        inst.scale.multiplyScalar(scale);
+        inst.userData.footprint = { w: inst.userData.footprint.w * scale, d: inst.userData.footprint.d * scale };
+        inst.rotation.y = Math.random() * Math.PI * 2;
+        return inst;
+      }
+      function spawnPineTree(scale = 1) {
+        const inst = spawnFromTemplate(templates.pineTrees, { scaleJitter: 0.08 });
+        inst.scale.multiplyScalar(scale);
+        inst.userData.footprint = { w: inst.userData.footprint.w * scale, d: inst.userData.footprint.d * scale };
+        inst.rotation.y = Math.random() * Math.PI * 2;
+        return inst;
+      }
+      function spawnTrash() {
+        const inst = spawnFromTemplate(templates.barrierTrash, { scaleJitter: 0.15 });
+        inst.rotation.y = Math.random() * Math.PI * 2;
+        return inst;
+      }
+      function spawnCastleGate() {
+        return spawnFromTemplate(templates.castleGate, { scaleJitter: 0 });
+      }
+      function spawnFortress() {
+        return spawnFromTemplate(templates.fortress, { scaleJitter: 0 });
+      }
+      function spawnArchway() {
+        return spawnFromTemplate(templates.archway, { scaleJitter: 0 });
+      }
+
+      // ============================================================
+      // GROUND / STREETS
+      // ============================================================
+      const CITY_SIZE = 95;
+
+      const groundMat = toonMat(0x8fb86a);
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000, 1, 1), groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Cobblestone street texture (procedural canvas)
+      function makeCobbleTexture() {
+        const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#9b9087'; ctx.fillRect(0, 0, 256, 256);
+        for (let i = 0; i < 260; i++) {
+          const x = Math.random() * 256, y = Math.random() * 256;
+          const r = 6 + Math.random() * 8;
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(${120 + Math.random() * 40 | 0},${112 + Math.random() * 35 | 0},${100 + Math.random() * 30 | 0},1)`;
+          ctx.ellipse(x, y, r, r * 0.8, Math.random() * Math.PI, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(60,52,45,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        return tex;
+      }
+      const cobbleTex = makeCobbleTexture();
+      cobbleTex.repeat.set(8, 8);
+      const cobbleMat = new THREE.MeshToonMaterial({
+        map: cobbleTex,
+        gradientMap: rampTex,
+        color: 0xffffff,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -4
+      });
+
+      // Street layout: a cross of main streets + a ring road, town square in center
+      const streetGroup = new THREE.Group();
+      function addStreet(w, h, x, z, rotY = 0) {
+        // Clone the material and texture so that the cobblestones tile perfectly without stretching
+        const mat = cobbleMat.clone();
+        mat.map = cobbleTex.clone();
+        mat.map.needsUpdate = true;
+        // 14 units wide corresponds to 8 repeats in the original layout
+        mat.map.repeat.set(w * (8 / 14), h * (8 / 14));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+        m.rotation.x = -Math.PI / 2;
+        m.rotation.z = rotY;
+        m.position.set(x, 0.04, z);
+        m.receiveShadow = true;
+        streetGroup.add(m);
+        return { x, z, w, h, rotY };
+      }
+
+      const streets = [];
+      streets.push(addStreet(14, 2000, 0, 0));            // main N-S (extended to infinity)
+      streets.push(addStreet(2000, 14, 0, 0));            // main E-W (extended to infinity)
+      streets.push(addStreet(10, 60, 40, 30));
+      streets.push(addStreet(10, 60, -40, -30));
+      streets.push(addStreet(60, 10, 35, -40));
+      streets.push(addStreet(60, 10, -35, 40));
+
+      // town square
+      const squareMat = new THREE.MeshToonMaterial({
+        map: cobbleTex,
+        gradientMap: rampTex,
+        color: 0xf3e3c4,
+        polygonOffset: true,
+        polygonOffsetFactor: -1.1,
+        polygonOffsetUnits: -4
+      });
+      const square = new THREE.Mesh(new THREE.CircleGeometry(16, 32), squareMat);
+      square.rotation.x = -Math.PI / 2;
+      square.position.y = 0.05;
+      square.receiveShadow = true;
+      scene.add(square);
+
+      scene.add(streetGroup);
+
+      function checkIsOnRoad(tx, tz, clearance = 0) {
+        for (let i = 0; i < streets.length; i++) {
+          const s = streets[i];
+          const halfW = s.w / 2 + clearance;
+          const halfH = s.h / 2 + clearance;
+          if (Math.abs(tx - s.x) < halfW && Math.abs(tz - s.z) < halfH) {
+            return true;
+          }
+        }
+        if (Math.hypot(tx, tz) < (16 + clearance)) {
+          return true;
+        }
+        return false;
+      }
+
+      // ============================================================
+      // PROPS — lamp posts, barrels, bushes, flower boxes
+      // (fountains now come from the Fountain.glb / Wishing_Well.glb templates)
+      // ============================================================
+      function buildLamp() {
+        const g = new THREE.Group();
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3, 8), toonMat(0x2b2b2e));
+        pole.position.y = 1.5; pole.castShadow = true;
+        g.add(pole);
+        const headGeo = new THREE.OctahedronGeometry(0.28, 0);
+        const headMat = toonMat(0xffe7a0, { emissive: 0xffb347, emissiveIntensity: 0.6 });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 3.1;
+        g.add(head);
+        const light = new THREE.PointLight(0xffcf8a, 0.6, 9, 2);
+        light.position.y = 3.1;
+        g.add(light);
+        return g;
+      }
+
+      function buildBarrel() {
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 0.7, 10), toonMat(0x8a5a2e));
+        barrel.position.y = 0.35;
+        barrel.castShadow = true;
+        addOutline(barrel, 0.02);
+        return barrel;
+      }
+
+      function buildBush() {
+        const g = new THREE.Group();
+        const mat = toonMat(0x5a8a45);
+        for (let i = 0; i < 3; i++) {
+          const s = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35 + Math.random() * 0.15, 0), mat);
+          s.position.set((Math.random() - 0.5) * 0.4, 0.3 + Math.random() * 0.15, (Math.random() - 0.5) * 0.4);
+          s.castShadow = true;
+          g.add(s);
+        }
+        return g;
+      }
+
+      function buildFlowerBox(colorSeed) {
+        const g = new THREE.Group();
+        const box = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.35), toonMat(0x8a7560));
+        box.position.y = 0.15;
+        g.add(box);
+        const flowerColors = [0xe85c6b, 0xf2c94c, 0xe879c4, 0xffffff];
+        for (let i = 0; i < 5; i++) {
+          const f = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 6), toonMat(flowerColors[(colorSeed + i) % flowerColors.length]));
+          f.position.set(-0.5 + i * 0.25, 0.32, 0);
+          g.add(f);
+        }
+        return g;
+      }
+
+      // ============================================================
+      // TREES, MARKET STALLS & CASTLE — now sourced from the GLB templates
+      // (Tree.glb / Pine_Trees.glb / Trees.glb, MarketStalls.glb, and
+      // Castle_Gate.glb / Fortress.glb) via the spawn* functions defined above,
+      // instead of being procedurally generated.
+      // ============================================================
+
+      // ============================================================
+      // ROAD ISSUE MARKERS — spawnable defects for a maintenance/gameplay layer:
+      // broken road, water leakage, garbage, and broken street lights.
+      // ============================================================
+      const roadIssues = []; // { type, mesh }
+
+      function buildIssue_BrokenRoad() {
+        const g = new THREE.Group();
+        const crackMat = toonMat(0x4a4438);
+        const patch = new THREE.Mesh(new THREE.CircleGeometry(0.9, 10), crackMat);
+        patch.rotation.x = -Math.PI / 2;
+        patch.position.y = 0.013;
+        g.add(patch);
+        for (let i = 0; i < 6; i++) {
+          const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08 + Math.random() * 0.08, 0), toonMat(0x8a8070));
+          r.position.set((Math.random() - 0.5) * 1.3, 0.05, (Math.random() - 0.5) * 1.0);
+          r.rotation.set(Math.random(), Math.random(), Math.random());
+          r.castShadow = true;
+          g.add(r);
+        }
+        return g;
+      }
+
+      function buildIssue_WaterLeak() {
+        const g = new THREE.Group();
+        const puddleMat = new THREE.MeshToonMaterial({ color: 0x6fc7e8, gradientMap: rampTex, transparent: true, opacity: 0.75 });
+        const puddle = new THREE.Mesh(new THREE.CircleGeometry(1.1, 16), puddleMat);
+        puddle.rotation.x = -Math.PI / 2;
+        puddle.position.y = 0.015;
+        g.add(puddle);
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.3, 8), toonMat(0x5a5a5a));
+        pipe.position.y = 0.15;
+        g.add(pipe);
+        const drip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 6), puddleMat);
+        drip.position.y = 0.42;
+        g.add(drip);
+        g.userData.drip = drip;
+        return g;
+      }
+
+      function buildIssue_Garbage() {
+        const g = new THREE.Group();
+        const colors = [0x3a3a3a, 0x6b5a42, 0x4a5a3a];
+        for (let i = 0; i < 5; i++) {
+          const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 + Math.random() * 0.1, 0), toonMat(colors[i % colors.length]));
+          m.position.set((Math.random() - 0.5) * 0.9, 0.1, (Math.random() - 0.5) * 0.7);
+          m.rotation.set(Math.random(), Math.random(), Math.random());
+          m.castShadow = true;
+          g.add(m);
+        }
+        const crate = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.4), toonMat(0x5a4530));
+        crate.rotation.set(0.3, 0.4, 0.1);
+        crate.position.set(0.3, 0.15, 0.2);
+        g.add(crate);
+        return g;
+      }
+
+      function buildIssue_BrokenLight() {
+        const lamp = buildLamp();
+        // removed rotation to keep them straight
+        const headLight = lamp.children.find(c => c.isPointLight);
+        if (headLight) headLight.intensity = 0.5;
+        lamp.userData.light = headLight;
+        return lamp;
+      }
+
+      const ISSUE_BUILDERS = {
+        brokenRoad: buildIssue_BrokenRoad,
+        waterLeak: buildIssue_WaterLeak,
+        garbage: buildIssue_Garbage,
+        brokenLight: buildIssue_BrokenLight
+      };
+
+      function spawnRoadIssue(type, x, z) {
+        const builder = ISSUE_BUILDERS[type];
+        if (!builder) return null;
+        const mesh = builder();
+        mesh.position.set(x, 0, z);
+        scene.add(mesh);
+        const entry = { type, mesh };
+        roadIssues.push(entry);
+        return entry;
+      }
+
+      function scatterRoadIssues(count = 12) {
+        const types = Object.keys(ISSUE_BUILDERS);
+        let placed = 0, attempts = 0;
+        while (placed < count && attempts < count * 25) {
+          attempts++;
+          const tile = streets[Math.floor(Math.random() * streets.length)];
+          if (!tile) break;
+          const x = tile.x + (Math.random() - 0.5) * tile.w * 0.7;
+          const z = tile.z + (Math.random() - 0.5) * tile.h * 0.7;
+          if (Math.hypot(x, z) < 18) continue;             // keep the square clear
+          if (overlaps(x, z, 1.6, 1.6, 0.2)) continue;          // avoid buildings/stalls
+          const type = types[Math.floor(Math.random() * types.length)];
+          spawnRoadIssue(type, x, z);
+          placed++;
+        }
+      }
+
+      // ============================================================
+      // MODULAR TOWN BLOCK — a self-contained, reusable chunk of city: internal
+      // road + houses + market stalls + (optional) fountain + corner trees +
+      // scattered props. Call repeatedly with different x/z to tile new districts.
+      // ============================================================
+      function buildTownBlock(opts = {}) {
+        const {
+          x = 0, z = 0,
+          size = 22,
+          hasFountain = false,
+          hasStalls = true,
+          houseRows = 2
+        } = opts;
+
+        const block = new THREE.Group();
+        block.position.set(x, 0, z);
+        const localOccupied = [];
+
+        // internal spur road, registered globally so issue markers can spawn on it too
+        const roadW = 5;
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(roadW, size * 0.94), cobbleMat);
+        road.rotation.x = -Math.PI / 2;
+        road.position.y = 0.012;
+        road.receiveShadow = true;
+        block.add(road);
+        streets.push({ x, z, w: roadW, h: size * 0.94, rotY: 0 });
+
+        // houses lining both sides of the internal road
+        const lots = houseRows * 2;
+        for (let i = 0; i < lots; i++) {
+          const side = i % 2 === 0 ? -1 : 1;
+          const row = Math.floor(i / 2);
+          const lz = -size * 0.36 + row * (size * 0.7 / Math.max(1, houseRows - 1 || 1));
+          const lx = side * (roadW / 2 + 3.0 + Math.random() * 0.5); // closer to the road
+          const house = spawnHouse();
+          const fp = house.userData.footprint;
+          house.position.set(lx, 0, lz);
+          house.rotation.y = (side < 0 ? Math.PI / 2 : -Math.PI / 2) + (Math.random() - 0.5) * 0.12;
+          house.castShadow = true;
+          block.add(house);
+          localOccupied.push({ x: x + lx, z: z + lz, w: fp.w, d: fp.d });
+
+          // Place a pine tree behind the house!
+          if (Math.random() < 0.8) {
+            const treeLx = lx + side * (fp.d / 2 + 1.6 + Math.random() * 0.4);
+            const treeLz = lz + (Math.random() - 0.5) * 1.0;
+            const treeX = x + treeLx;
+            const treeZ = z + treeLz;
+            if (!checkIsOnRoad(treeX, treeZ, 10.0) && !overlaps(treeX, treeZ, 2.0, 2.0, 0.1)) {
+              const pine = spawnPineTree(0.75 + Math.random() * 0.4);
+              pine.position.set(treeLx, 0, treeLz);
+              block.add(pine);
+              localOccupied.push({ x: treeX, z: treeZ, w: 2.0, d: 2.0 });
+            }
+          }
+        }
+
+        // market stalls along the road
+        if (hasStalls) {
+          const stallCount = 2 + Math.floor(Math.random() * 2);
+          for (let i = 0; i < stallCount; i++) {
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const lz = -size * 0.3 + Math.random() * size * 0.6;
+            const lx = side * (roadW / 2 + 1.6);
+            const stall = spawnMarketStall();
+            stall.position.set(lx, 0, lz);
+            stall.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+            block.add(stall);
+            localOccupied.push({ x: x + lx, z: z + lz, w: 2.8, d: 2.0 });
+          }
+        }
+
+        if (hasFountain) block.add(spawnFountain());
+
+        // corner trees
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
+          if (Math.random() < 0.25) return;
+          const treeLx = sx * size * 0.42;
+          const treeLz = sz * size * 0.42;
+          const treeX = x + treeLx;
+          const treeZ = z + treeLz;
+          if (checkIsOnRoad(treeX, treeZ, 10.0)) return;
+          const tree = spawnTree(0.8 + Math.random() * 0.4);
+          tree.position.set(treeLx, 0, treeLz);
+          block.add(tree);
+        });
+
+        // decorative props
+        for (let i = 0; i < 3; i++) {
+          const barrel = buildBarrel();
+          barrel.position.set((Math.random() - 0.5) * size * 0.7, 0, (Math.random() - 0.5) * size * 0.7);
+          block.add(barrel);
+        }
+        const lamp = buildLamp();
+        lamp.position.set(roadW / 2 + 2.5, 0, -size * 0.3); // moved further outside road
+        block.add(lamp);
+
+        cityGroup.add(block);
+        localOccupied.forEach(o => occupied.push(o));
+        block.userData.footprint = { w: size, d: size };
+        return block;
+      }
+
+      // ============================================================
+      // LAY OUT THE CITY
+      // ============================================================
+      const cityGroup = new THREE.Group();
+      scene.add(cityGroup);
+
+      const occupied = []; // {x,z,w,d} for simple overlap + collision checks
+
+      function overlaps(x, z, w, d, margin = 1.0) {
+        for (const o of occupied) {
+          if (Math.abs(x - o.x) < (w + o.w) / 2 + margin && Math.abs(z - o.z) < (d + o.d) / 2 + margin) return true;
+        }
+        return false;
+      }
+      function nearStreetOrSquare(x, z) {
+        if (Math.hypot(x, z) < 19) return false; // keep clear right at square edge buffer handled separately
+        return true;
+      }
+
+      // place houses in 4 quadrant "blocks", lining the streets, avoiding the cross + square + ring roads
+      function tryPlaceHouse(x, z, faceAngle) {
+        const house = spawnHouse();
+        const fp = house.userData.footprint;
+
+        let targetX = x;
+        let targetZ = z;
+
+        // Snap to main N-S street (x = 0, width 14, curb at 7)
+        if (Math.abs(x) > 7 && Math.abs(x) < 20 && Math.abs(x) > Math.abs(z)) {
+          const houseDepth = fp.d || 7.5;
+          const curbDist = 7.0 + houseDepth / 2 + 0.4;
+          targetX = Math.sign(x) * curbDist;
+        }
+        // Snap to main E-W street (z = 0, width 14, curb at 7)
+        else if (Math.abs(z) > 7 && Math.abs(z) < 20 && Math.abs(z) > Math.abs(x)) {
+          const houseDepth = fp.d || 7.5;
+          const curbDist = 7.0 + houseDepth / 2 + 0.4;
+          targetZ = Math.sign(z) * curbDist;
+        }
+        // Snap to secondary N-S streets (x = 40 and x = -40, width 10, curb at 5)
+        else if (Math.abs(x - 40) < 12 && z > -35 && z < 35) {
+          const houseDepth = fp.d || 7.5;
+          targetX = 40 + Math.sign(x - 40) * (5.0 + houseDepth / 2 + 0.4);
+        }
+        else if (Math.abs(x - (-40)) < 12 && z > -35 && z < 35) {
+          const houseDepth = fp.d || 7.5;
+          targetX = -40 + Math.sign(x - (-40)) * (5.0 + houseDepth / 2 + 0.4);
+        }
+        // Snap to secondary E-W streets (z = 40 and z = -40, width 10, curb at 5)
+        else if (Math.abs(z - 40) < 12 && x > -35 && x < 35) {
+          const houseDepth = fp.d || 7.5;
+          targetZ = 40 + Math.sign(z - 40) * (5.0 + houseDepth / 2 + 0.4);
+        }
+        else if (Math.abs(z - (-40)) < 12 && x > -35 && x < 35) {
+          const houseDepth = fp.d || 7.5;
+          targetZ = -40 + Math.sign(z - (-40)) * (5.0 + houseDepth / 2 + 0.4);
+        }
+
+        if (overlaps(targetX, targetZ, fp.w, fp.d)) { return false; }
+        house.position.set(targetX, 0, targetZ);
+        house.rotation.y = faceAngle;
+        house.castShadow = true;
+        cityGroup.add(house);
+        occupied.push({ x: targetX, z: targetZ, w: fp.w, d: fp.d });
+
+        // Spawn a pine tree behind the house!
+        if (Math.random() < 0.75) {
+          let tx = targetX;
+          let tz = targetZ;
+          if (Math.abs(targetX) > Math.abs(targetZ)) {
+            tx = targetX + Math.sign(targetX) * (fp.d / 2 + 1.8 + Math.random() * 0.8);
+            tz = targetZ + (Math.random() - 0.5) * 2.0;
+          } else {
+            tz = targetZ + Math.sign(targetZ) * (fp.d / 2 + 1.8 + Math.random() * 0.8);
+            tx = targetX + (Math.random() - 0.5) * 2.0;
+          }
+          let isOnRoad = checkIsOnRoad(tx, tz, 10.0);
+
+          if (!isOnRoad && Math.abs(tx) < CITY_SIZE - 5 && Math.abs(tz) < CITY_SIZE - 5 && !overlaps(tx, tz, 2.0, 2.0, 0.2)) {
+            const pine = spawnPineTree(0.8 + Math.random() * 0.5);
+            pine.position.set(tx, 0, tz);
+            cityGroup.add(pine);
+            occupied.push({ x: tx, z: tz, w: 2.0, d: 2.0 });
+          }
+        }
+
+        return true;
+      }
+
+      // Grid scatter across 4 quadrants, skip if actually on streets or near square
+      const GRID_STEP = 11;
+      for (let gx = -CITY_SIZE + 15; gx <= CITY_SIZE - 15; gx += GRID_STEP) {
+        for (let gz = -CITY_SIZE + 15; gz <= CITY_SIZE - 15; gz += GRID_STEP) {
+          const x = gx + (Math.random() - 0.5) * 3;
+          const z = gz + (Math.random() - 0.5) * 3;
+          if (Math.hypot(x, z) < 22) continue;              // keep square area clear
+
+          // Keep main streets clear (increase clearance so house models don't clip road)
+          if (Math.abs(x) < 11.5 || Math.abs(z) < 11.5) continue;
+
+          // Keep secondary streets clear
+          if (Math.abs(x - 40) < 9.5 && Math.abs(z - 30) < 35) continue;
+          if (Math.abs(x + 40) < 9.5 && Math.abs(z + 30) < 35) continue;
+          if (Math.abs(z - (-40)) < 9.5 && Math.abs(x - 35) < 35) continue;
+          if (Math.abs(z - 40) < 9.5 && Math.abs(x + 35) < 35) continue;
+
+          if (Math.abs(z + 83) < 9 && Math.abs(x) < 24) continue;       // keep the castle gate plaza clear
+          if (Math.hypot(x - 55, z + 55) < 16) continue;                  // reserved for the modular market-district block
+          if (Math.hypot(x + 55, z - 55) < 16) continue;                  // reserved for the modular market-district block
+
+          // face the house toward the nearest main axis (toward center-ish street)
+          let angle = 0;
+          if (Math.abs(x) > Math.abs(z)) angle = x > 0 ? Math.PI / 2 : -Math.PI / 2;
+          else angle = z > 0 ? Math.PI : 0;
+          if (Math.random() < 0.15) continue; // leave occasional gaps / plazas
+          tryPlaceHouse(x, z, angle + (Math.random() - 0.5) * 0.15);
+        }
+      }
+
+      // Lamp posts along main streets
+      for (let i = -CITY_SIZE + 20; i <= CITY_SIZE - 20; i += 20) {
+        if (Math.abs(i) < 18) continue;
+        [[12.5, i], [-12.5, i], [i, 12.5], [i, -12.5]].forEach(([x, z]) => {
+          // Skip if on main streets
+          if (Math.abs(x) < 7.5 || Math.abs(z) < 7.5) return;
+          // Skip if on secondary N-S streets
+          if (Math.abs(Math.abs(x) - 40) < 5.5 && Math.abs(z) < 65) return;
+          // Skip if on secondary E-W streets
+          if (Math.abs(Math.abs(z) - 40) < 5.5 && Math.abs(x) < 65) return;
+
+          const lamp = buildLamp();
+          lamp.position.set(x, 0, z);
+          cityGroup.add(lamp);
+        });
+      }
+
+      // Fountain in the square
+      const fountain = spawnFountain();
+      cityGroup.add(fountain);
+
+      // Bushes + barrels + flower boxes scattered near square and streets
+      for (let i = 0; i < 26; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const r = 18 + Math.random() * 4;
+        const bush = buildBush();
+        bush.position.set(Math.cos(ang) * r, 0, Math.sin(ang) * r);
+        cityGroup.add(bush);
+      }
+      for (let i = 0; i < 18; i++) {
+        const o = occupied[Math.floor(Math.random() * occupied.length)];
+        if (!o) continue;
+        const barrel = buildBarrel();
+        const ang = Math.random() * Math.PI * 2;
+        barrel.position.set(o.x + Math.cos(ang) * (o.w / 2 + 0.6), 0, o.z + Math.sin(ang) * (o.d / 2 + 0.6));
+        cityGroup.add(barrel);
+      }
+
+      // Street trees scattered near buildings (canopy variety from the reference art)
+      for (let i = 0; i < 22; i++) {
+        const o = occupied[Math.floor(Math.random() * occupied.length)];
+        if (!o) continue;
+        const ang = Math.random() * Math.PI * 2;
+        const tx = o.x + Math.cos(ang) * (o.w / 2 + 1.5);
+        const tz = o.z + Math.sin(ang) * (o.d / 2 + 1.5);
+
+        if (checkIsOnRoad(tx, tz, 10.0)) continue;
+
+        const tree = spawnTree(0.8 + Math.random() * 0.5);
+        tree.position.set(tx, 0, tz);
+        cityGroup.add(tree);
+      }
+
+      // Market stalls ringing the town square, tucked between the four street openings
+      const STALL_RING_ANGLES = [Math.PI / 6, Math.PI * 5 / 6, -Math.PI / 6, -Math.PI * 5 / 6, Math.PI / 3, Math.PI * 2 / 3, -Math.PI / 3, -Math.PI * 2 / 3];
+      STALL_RING_ANGLES.forEach(ang => {
+        const r = 11.5 + Math.random() * 1.5;
+        const stall = spawnMarketStall();
+        const sx = Math.cos(ang) * r, sz = Math.sin(ang) * r;
+        stall.position.set(sx, 0, sz);
+        stall.rotation.y = ang + Math.PI / 2;
+        cityGroup.add(stall);
+        occupied.push({ x: sx, z: sz, w: 2.8, d: 2.0 });
+      });
+
+      // Castle gate complex at the north end of the main avenue — the
+      // Castle_Gate.glb already bundles walls, towers and the door, and the
+      // Fortress.glb sits further back as the keep backdrop seen rising above
+      // the rooftops in the reference art.
+      {
+        const gateZ = -83;
+        const gate = spawnCastleGate();
+        gate.position.set(0, 0, gateZ);
+        cityGroup.add(gate);
+        occupied.push({ x: 0, z: gateZ, w: gate.userData.footprint.w, d: gate.userData.footprint.d });
+
+        const fortress = spawnFortress();
+        fortress.position.set(0, 0, gateZ - fortress.userData.footprint.d * 0.5 - 8);
+        cityGroup.add(fortress);
+      }
+
+      // Two demo "town blocks" — the reusable district module, fully tiled with
+      // its own road + houses + stalls + trees + props, dropped into open ground.
+      buildTownBlock({ x: 55, z: -55, size: 22, hasStalls: true, hasFountain: false, houseRows: 2 });
+      buildTownBlock({ x: -55, z: 55, size: 22, hasStalls: true, hasFountain: false, houseRows: 2 });
+
+      // Birds (simple low-poly, static perched + a couple flying via animation) - small charm detail
+      function buildBird(color = 0x5b7fb0) {
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), toonMat(color));
+        body.scale.set(1, 0.8, 1.4);
+        g.add(body);
+        const wingMat = toonMat(color);
+        const wing1 = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 4), wingMat);
+        wing1.rotation.z = Math.PI / 2; wing1.position.set(-0.18, 0.02, 0);
+        g.add(wing1);
+        const wing2 = wing1.clone(); wing2.position.x = 0.18;
+        g.add(wing2);
+        return g;
+      }
+      for (let i = 0; i < 8; i++) {
+        const o = occupied[Math.floor(Math.random() * occupied.length)];
+        if (!o) continue;
+        const bird = buildBird(Math.random() < 0.5 ? 0x5b7fb0 : 0xd9943a);
+        bird.position.set(o.x + (Math.random() - 0.5) * 2, 3.6 + Math.random() * 1.5, o.z + (Math.random() - 0.5) * 2);
+        bird.rotation.y = Math.random() * Math.PI * 2;
+        cityGroup.add(bird);
+      }
+
+      // City boundary wall (low, decorative) so player has a sense of edge
+      {
+        const wallMat2 = toonMat(0xb9ad95);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(CITY_SIZE * 1.42, 1.2, 8, 64), wallMat2);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.6;
+        ring.scale.y = 0.5;
+        // (purely decorative, low priority — skip detailed collision)
+      }
+
+      // // scatterRoadIssues(14); // Removed to keep the roads clean and free of unwanted objects // Removed to keep the roads clean and free of unwanted objects
+
+      // South entrance archway — book-ends the main avenue opposite the castle
+      {
+        const arch = spawnArchway();
+        arch.position.set(0, 0, CITY_SIZE * 0.92);
+        arch.rotation.y = Math.PI;
+        cityGroup.add(arch);
+      }
+
+      // Decorative medieval road barricades at the city exits (South, East, West)
+      function buildRoadBarricade() {
+        const g = new THREE.Group();
+        const woodMat = toonMat(0x734829); // medieval dark wood
+        const metalMat = toonMat(0x2d2d30); // dark iron fittings
+        const stripeMat = toonMat(0xcca03a); // warm gold/orange warning stripes
+
+        // Left vertical post
+        const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.2, 8), woodMat);
+        postL.position.set(-6, 1.1, 0);
+        postL.castShadow = true;
+        postL.receiveShadow = true;
+        g.add(postL);
+
+        // Right vertical post
+        const postR = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 2.2, 8), woodMat);
+        postR.position.set(6, 1.1, 0);
+        postR.castShadow = true;
+        postR.receiveShadow = true;
+        g.add(postR);
+
+        // Main horizontal barricade beam
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(13, 0.45, 0.25), woodMat);
+        beam.position.set(0, 1.4, 0);
+        beam.castShadow = true;
+        beam.receiveShadow = true;
+        g.add(beam);
+
+        // Warning stripes on the beam (gives it a clear 'closed road' visual)
+        for (let i = -5; i <= 5; i += 2.0) {
+          const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.47, 0.28), stripeMat);
+          stripe.position.set(i, 1.4, 0);
+          stripe.rotation.z = Math.PI / 4;
+          g.add(stripe);
+        }
+
+        // Support braces on the side posts
+        const braceL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.8, 0.15), woodMat);
+        braceL.position.set(-5.3, 0.8, 0);
+        braceL.rotation.z = -Math.PI / 6;
+        braceL.castShadow = true;
+        g.add(braceL);
+
+        const braceR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.8, 0.15), woodMat);
+        braceR.position.set(5.3, 0.8, 0);
+        braceR.rotation.z = Math.PI / 6;
+        braceR.castShadow = true;
+        g.add(braceR);
+
+        // Lantern hanging in the center (glows beautifully)
+        const lanternPole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.35, 6), metalMat);
+        lanternPole.position.set(0, 1.85, 0);
+        g.add(lanternPole);
+
+        const lanternHead = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), toonMat(0xffd580, { emissive: 0xffa500, emissiveIntensity: 0.9 }));
+        lanternHead.position.set(0, 2.1, 0);
+        g.add(lanternHead);
+
+        return g;
+      }
+
+      // Spawn the barricades at South, East, and West exits
+      const barSouth = buildRoadBarricade();
+      barSouth.position.set(0, 0, 89);
+      cityGroup.add(barSouth);
+      occupied.push({ x: 0, z: 89, w: 14, d: 2.0 });
+
+      const barEast = buildRoadBarricade();
+      barEast.position.set(89, 0, 0);
+      barEast.rotation.y = Math.PI / 2;
+      cityGroup.add(barEast);
+      occupied.push({ x: 89, z: 0, w: 2.0, d: 14 });
+
+      const barWest = buildRoadBarricade();
+      barWest.position.set(-89, 0, 0);
+      barWest.rotation.y = Math.PI / 2;
+      cityGroup.add(barWest);
+      occupied.push({ x: -89, z: 0, w: 2.0, d: 14 });
+
+      // Wishing well — secondary landmark tucked near the square
+      {
+        const well = spawnWishingWell();
+        well.position.set(7.5, 0, 7.5);
+        if (!overlaps(7.5, 7.5, well.userData.footprint.w, well.userData.footprint.d, 0.5)) {
+          cityGroup.add(well);
+          occupied.push({ x: 7.5, z: 7.5, w: well.userData.footprint.w, d: well.userData.footprint.d });
+        }
+      }
+
+      // Scattered trash/clutter near alleys and building corners
+      for (let i = 0; i < 10; i++) {
+        const o = occupied[Math.floor(Math.random() * occupied.length)];
+        if (!o) continue;
+        const trash = spawnTrash();
+        const ang = Math.random() * Math.PI * 2;
+        trash.position.set(o.x + Math.cos(ang) * (o.w / 2 + 18.0), 0, o.z + Math.sin(ang) * (o.d / 2 + 18.0));
+        cityGroup.add(trash);
+      }
+      
+      // Spawn our story-driven citizens
+      spawnBusyCitizens(templates);
+
+      console.log('City built. Houses placed:', occupied.length, '| Road issues:', roadIssues.length);
+      
+
+
+      // ---------- Tool Builders (Procedural) ----------
+      function buildBroom() {
+        const group = new THREE.Group();
+        const wood = new THREE.MeshToonMaterial({ color: 0x8a5a32, gradientMap: rampTex });
+        const straw = new THREE.MeshToonMaterial({ color: 0xe5c158, gradientMap: rampTex });
+        
+        // handle
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.3, 8), wood);
+        handle.position.y = 0.65;
+        handle.castShadow = true;
+        group.add(handle);
+        
+        // head
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.11, 0.25, 8), straw);
+        head.position.y = 0.125;
+        head.scale.set(1.5, 1, 0.6); // flatten
+        head.castShadow = true;
+        group.add(head);
+        
+        return group;
+      }
+
+      function buildShovel() {
+        const group = new THREE.Group();
+        const wood = new THREE.MeshToonMaterial({ color: 0x8a5a32, gradientMap: rampTex });
+        const metal = new THREE.MeshToonMaterial({ color: 0x7f8c8d, gradientMap: rampTex });
+        
+        // handle
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 1.1, 8), wood);
+        handle.position.y = 0.55;
+        handle.castShadow = true;
+        group.add(handle);
+        
+        // scoop
+        const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.02), metal);
+        scoop.position.y = 0.11;
+        scoop.rotation.x = 0.1;
+        scoop.castShadow = true;
+        group.add(scoop);
+        
+        return group;
+      }
+
+      function buildSapling() {
+        const group = new THREE.Group();
+        const wood = new THREE.MeshToonMaterial({ color: 0x5c4033, gradientMap: rampTex });
+        const leavesMat = new THREE.MeshToonMaterial({ color: 0x2ecc71, gradientMap: rampTex });
+        
+        // trunk
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.35, 8), wood);
+        trunk.position.y = 0.175;
+        group.add(trunk);
+        
+        // leaves
+        const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 8), leavesMat);
+        leaves.position.y = 0.38;
+        group.add(leaves);
+        
+        return group;
+      }
+
+      // We renamed the procedural builder slightly to avoid conflict with spawnTrash
+      function buildTrashBin() {
+        const group = new THREE.Group();
+        const darkMetal = new THREE.MeshToonMaterial({ color: 0x2d3436, gradientMap: rampTex });
+        
+        // bin body
+        const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.21, 0.7, 12), darkMetal);
+        bin.position.y = 0.35;
+        bin.castShadow = true;
+        bin.receiveShadow = true;
+        group.add(bin);
+        
+        // lid
+        const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.04, 12), darkMetal);
+        lid.position.y = 0.72;
+        lid.castShadow = true;
+        group.add(lid);
+        
+        // handle on lid
+        const handle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 6, 12), darkMetal);
+        handle.position.y = 0.76;
+        handle.rotation.x = Math.PI / 2;
+        group.add(handle);
+        
+        return group;
+      }
+
+      // ---------- Spawn Busy Citizens ----------
+
+      function spawnBusyCitizens(templates) {
+        const citizensData = [
+          // --- Group 1: Original coordinates ---
+          {
+            template: templates.citizens.women1,
+            type: 'cleaning',
+            pos: new THREE.Vector3(12, 0, 8),
+            rot: Math.PI * 0.4,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.man1,
+            type: 'digging',
+            pos: new THREE.Vector3(-22, 0, 18),
+            rot: Math.PI * 1.2,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          {
+            template: templates.citizens.women2,
+            type: 'planting',
+            pos: new THREE.Vector3(-15, 0, -25),
+            rot: Math.PI * 0.15,
+            toolBuilder: buildSapling,
+            toolOffset: new THREE.Vector3(0, 0, 0.55),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man2,
+            type: 'throwing',
+            pos: new THREE.Vector3(18, 0, -18),
+            rot: Math.PI * 0.8,
+            toolBuilder: buildTrashBin,
+            toolOffset: new THREE.Vector3(0.55, 0, 0),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man3,
+            type: 'cleaning',
+            pos: new THREE.Vector3(-8, 0, -85),
+            rot: Math.PI * 1.6,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.women3,
+            type: 'digging',
+            pos: new THREE.Vector3(10, 0, -52),
+            rot: Math.PI * 0.3,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          // --- Group 2: Square and Main Road Section ---
+          {
+            template: templates.citizens.women1,
+            type: 'cleaning',
+            pos: new THREE.Vector3(8, 0, 6),
+            rot: Math.PI * 1.1,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.man1,
+            type: 'digging',
+            pos: new THREE.Vector3(-6, 0, 8),
+            rot: Math.PI * 0.5,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          {
+            template: templates.citizens.women2,
+            type: 'planting',
+            pos: new THREE.Vector3(-7, 0, -6),
+            rot: Math.PI * 1.7,
+            toolBuilder: buildSapling,
+            toolOffset: new THREE.Vector3(0, 0, 0.55),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man2,
+            type: 'throwing',
+            pos: new THREE.Vector3(7, 0, -8),
+            rot: Math.PI * 0.9,
+            toolBuilder: buildTrashBin,
+            toolOffset: new THREE.Vector3(0.55, 0, 0),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man3,
+            type: 'cleaning',
+            pos: new THREE.Vector3(3.5, 0, -35),
+            rot: Math.PI * 0.2,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.women3,
+            type: 'digging',
+            pos: new THREE.Vector3(-3.5, 0, 35),
+            rot: Math.PI * 1.4,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          // --- Group 3: Outer Streets, Gates, and Landmarks ---
+          {
+            template: templates.citizens.women1,
+            type: 'planting',
+            pos: new THREE.Vector3(35, 0, 3.5),
+            rot: Math.PI * 0.75,
+            toolBuilder: buildSapling,
+            toolOffset: new THREE.Vector3(0, 0, 0.55),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man1,
+            type: 'throwing',
+            pos: new THREE.Vector3(-35, 0, -3.5),
+            rot: Math.PI * 1.85,
+            toolBuilder: buildTrashBin,
+            toolOffset: new THREE.Vector3(0.55, 0, 0),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.women2,
+            type: 'cleaning',
+            pos: new THREE.Vector3(4, 0, -75),
+            rot: Math.PI * 0.6,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.man2,
+            type: 'digging',
+            pos: new THREE.Vector3(-6, 0, -78),
+            rot: Math.PI * 1.55,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          {
+            template: templates.citizens.man3,
+            type: 'planting',
+            pos: new THREE.Vector3(-4, 0, 75),
+            rot: Math.PI * 0.1,
+            toolBuilder: buildSapling,
+            toolOffset: new THREE.Vector3(0, 0, 0.55),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.women3,
+            type: 'throwing',
+            pos: new THREE.Vector3(4, 0, 78),
+            rot: Math.PI * 1.05,
+            toolBuilder: buildTrashBin,
+            toolOffset: new THREE.Vector3(0.55, 0, 0),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          // --- Group 4: Wishing Well and Secondary Districts ---
+          {
+            template: templates.citizens.women1,
+            type: 'cleaning',
+            pos: new THREE.Vector3(9.5, 0, 9.5),
+            rot: Math.PI * 0.35,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.man1,
+            type: 'digging',
+            pos: new THREE.Vector3(2.5, 0, 2.5),
+            rot: Math.PI * 1.3,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          },
+          {
+            template: templates.citizens.women2,
+            type: 'planting',
+            pos: new THREE.Vector3(48, 0, -48),
+            rot: Math.PI * 0.85,
+            toolBuilder: buildSapling,
+            toolOffset: new THREE.Vector3(0, 0, 0.55),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man2,
+            type: 'throwing',
+            pos: new THREE.Vector3(62, 0, -62),
+            rot: Math.PI * 1.9,
+            toolBuilder: buildTrashBin,
+            toolOffset: new THREE.Vector3(0.55, 0, 0),
+            toolRot: new THREE.Euler(0, 0, 0)
+          },
+          {
+            template: templates.citizens.man3,
+            type: 'cleaning',
+            pos: new THREE.Vector3(-48, 0, 48),
+            rot: Math.PI * 0.05,
+            toolBuilder: buildBroom,
+            toolOffset: new THREE.Vector3(0.22, 0.4, 0.22),
+            toolRot: new THREE.Euler(0.4, 0, -0.4)
+          },
+          {
+            template: templates.citizens.women3,
+            type: 'digging',
+            pos: new THREE.Vector3(-62, 0, 62),
+            rot: Math.PI * 1.15,
+            toolBuilder: buildShovel,
+            toolOffset: new THREE.Vector3(0.18, 0.3, 0.28),
+            toolRot: new THREE.Euler(0.6, 0, -0.3)
+          }
+        ];
+
+        citizensData.forEach((data) => {
+          const char = spawnFromTemplate(data.template, { scaleJitter: 0 });
+          char.position.copy(data.pos);
+          char.rotation.y = data.rot;
+          scene.add(char);
+
+          // Spawn tool
+          const tool = data.toolBuilder();
+          tool.position.copy(data.pos).add(data.toolOffset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), data.rot));
+          tool.rotation.copy(data.toolRot);
+          tool.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), data.rot);
+          scene.add(tool);
+
+          // Add extra environmental props for storytelling
+          if (data.type === 'digging') {
+            // Small dirt pile mound
+            const dirtMat = new THREE.MeshToonMaterial({ color: 0x5c4033, gradientMap: rampTex });
+            const dirt = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), dirtMat);
+            dirt.scale.set(1.4, 0.4, 1.2);
+            dirt.position.copy(data.pos).add(new THREE.Vector3(0, 0.05, 0.65).applyAxisAngle(new THREE.Vector3(0, 1, 0), data.rot));
+            dirt.castShadow = true;
+            dirt.receiveShadow = true;
+            scene.add(dirt);
+          } else if (data.type === 'planting') {
+            // Soil mound around the sapling
+            const dirtMat = new THREE.MeshToonMaterial({ color: 0x5c4033, gradientMap: rampTex });
+            const soil = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), dirtMat);
+            soil.scale.set(1.2, 0.3, 1.2);
+            soil.position.copy(tool.position).setY(0.02);
+            soil.castShadow = true;
+            scene.add(soil);
+          } else if (data.type === 'throwing') {
+            // Place a small paper/garbage box in their hand
+            const paperMat = new THREE.MeshToonMaterial({ color: 0xdcdde1, gradientMap: rampTex });
+            const paper = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), paperMat);
+            paper.position.copy(data.pos).add(new THREE.Vector3(0.2, 0.85, 0.2).applyAxisAngle(new THREE.Vector3(0, 1, 0), data.rot));
+            paper.rotation.set(Math.random(), Math.random(), Math.random());
+            paper.castShadow = true;
+            scene.add(paper);
+            
+            char.userData.garbageMesh = paper;
+            char.userData.garbageBaseOffset = new THREE.Vector3(0.2, 0.85, 0.2).applyAxisAngle(new THREE.Vector3(0, 1, 0), data.rot);
+          }
+
+          busyCitizens.push({
+            char,
+            tool,
+            type: data.type,
+            basePos: data.pos.clone(),
+            baseRot: data.rot,
+            toolOffset: data.toolOffset.clone(),
+            toolBaseRot: data.toolRot.clone(),
+            phase: Math.random() * Math.PI * 2
+          });
+        });
+      }
+
+      // ============================================================
+      // CHARACTER — stylized low-poly woman, procedurally built & rigged
+      // ============================================================
+      function buildCharacter() {
+        const char = new THREE.Group();
+
+        const skin = toonMat(0xf6d2ae);
+        const hair = toonMat(0x4caf6f);
+        const hairDark = toonMat(0x3a8f58);
+        const vest = toonMat(0x2f7a6b);
+        const shirt = toonMat(0xfaf5e9);
+        const pants = toonMat(0x6b6450);
+        const boots = toonMat(0x6b4226);
+        const bagMat = toonMat(0x8a5a32);
+        const cheekMat = new THREE.MeshBasicMaterial({ color: 0xe8927a, transparent: true, opacity: 0.55 });
+
+        // pivot groups for animation
+        const hips = new THREE.Group();
+        hips.position.y = 0.67; // calibrated so boot soles land exactly at y=0 (ground)
+        char.add(hips);
+
+        // torso (slightly tapered, vest over puffy white shirt)
+        const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.42, 4, 8), vest);
+        torso.position.y = 0.4;
+        torso.scale.set(1, 1, 0.85);
+        torso.castShadow = true;
+        hips.add(torso);
+        addOutline(torso, 0.03);
+
+        // white shirt peeking at collar + puffy sleeve bases at shoulders
+        const shirtChest = new THREE.Mesh(new THREE.SphereGeometry(0.27, 10, 8), shirt);
+        shirtChest.position.set(0, 0.62, 0.02);
+        shirtChest.scale.set(0.75, 0.55, 0.55);
+        hips.add(shirtChest);
+
+        // belt
+        const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.07, 16), toonMat(0x4a3322));
+        belt.position.y = 0.12;
+        hips.add(belt);
+
+        // ---- HEAD (bigger, rounder — stylized anime proportions) ----
+        const headGroup = new THREE.Group();
+        headGroup.position.y = 0.98;
+        hips.add(headGroup);
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 14), skin);
+        head.scale.set(0.92, 1.0, 0.88);
+        head.castShadow = true;
+        headGroup.add(head);
+        addOutline(head, 0.035);
+
+        // jaw taper (slightly narrower chin, blended via a second smaller sphere)
+        const chin = new THREE.Mesh(new THREE.SphereGeometry(0.27, 14, 12), skin);
+        chin.position.set(0, -0.16, 0.02);
+        chin.scale.set(0.82, 0.7, 0.78);
+        headGroup.add(chin);
+
+        // rosy cheeks
+        [-0.16, 0.16].forEach(cx => {
+          const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), cheekMat);
+          cheek.position.set(cx, -0.06, 0.275);
+          headGroup.add(cheek);
+        });
+
+        // ---- HAIR — green bob, side-swept fringe, volume at crown ----
+        const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.345, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
+        hairCap.position.y = 0.05;
+        hairCap.scale.set(1.0, 1.05, 0.98);
+        headGroup.add(hairCap);
+        addOutline(hairCap, 0.035);
+
+        const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), hair);
+        hairBack.position.set(0, -0.1, -0.08);
+        hairBack.scale.set(1.05, 1.25, 1.05);
+        headGroup.add(hairBack);
+        addOutline(hairBack, 0.03);
+
+        // side-swept fringe pieces (asymmetric, sweeping toward one side like the reference)
+        const fringeL = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 6), hairDark);
+        fringeL.position.set(-0.2, 0.1, 0.26);
+        fringeL.rotation.set(0.3, 0, 0.5);
+        headGroup.add(fringeL);
+        const fringeR = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.2, 6), hairDark);
+        fringeR.position.set(0.15, 0.13, 0.27);
+        fringeR.rotation.set(0.25, 0, -0.35);
+        headGroup.add(fringeR);
+        const fringeC = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 6), hair);
+        fringeC.position.set(-0.02, 0.18, 0.29);
+        fringeC.rotation.set(0.2, 0, 0.15);
+        headGroup.add(fringeC);
+
+        // side locks framing the face down to the jaw
+        [-1, 1].forEach(s => {
+          const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.22, 4, 6), hair);
+          lock.position.set(s * 0.27, -0.08, 0.08);
+          lock.rotation.z = s * 0.12;
+          headGroup.add(lock);
+        });
+
+        // ---- FACE: bigger eyes with highlight, soft brow, small nose/mouth hint ----
+        const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xfdfdf8 });
+        const eyeIris = new THREE.MeshBasicMaterial({ color: 0x2b4a2e });
+        const eyeHighlight = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        [-0.105, 0.105].forEach(ex => {
+          const white = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), eyeWhite);
+          white.scale.set(1, 1.15, 0.4);
+          white.position.set(ex, -0.01, 0.295);
+          headGroup.add(white);
+          const iris = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), eyeIris);
+          iris.position.set(ex, -0.015, 0.32);
+          headGroup.add(iris);
+          const hl = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 6), eyeHighlight);
+          hl.position.set(ex + 0.012, 0.0, 0.33);
+          headGroup.add(hl);
+        });
+        // small mouth
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.01), new THREE.MeshBasicMaterial({ color: 0xa05a4a }));
+        mouth.position.set(0, -0.16, 0.315);
+        headGroup.add(mouth);
+
+        // arms (pivot at shoulder for swing) — puffy sleeve at top, slim forearm
+        function buildArm(side) {
+          const shoulder = new THREE.Group();
+          shoulder.position.set(0.27 * side, 0.58, 0);
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(0.115, 8, 8), shirt);
+          puff.position.y = -0.05;
+          shoulder.add(puff);
+          const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.26, 4, 6), shirt);
+          upper.position.y = -0.18;
+          upper.castShadow = true;
+          shoulder.add(upper);
+          addOutline(upper, 0.05);
+          const hand = new THREE.Mesh(new THREE.SphereGeometry(0.068, 8, 8), skin);
+          hand.position.y = -0.34;
+          shoulder.add(hand);
+          return shoulder;
+        }
+        const armL = buildArm(-1); hips.add(armL);
+        const armR = buildArm(1); hips.add(armR);
+
+        // satchel bag + strap (decorative, static)
+        const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 0.04), bagMat);
+        strap.position.set(-0.14, 0.5, 0.1);
+        strap.rotation.z = 0.5;
+        hips.add(strap);
+        const bag = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.13), bagMat);
+        bag.position.set(0.23, 0.14, 0.13);
+        bag.rotation.z = 0.12;
+        hips.add(bag);
+        addOutline(bag, 0.03);
+        const bagFlap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.15), toonMat(0x6f4525));
+        bagFlap.position.set(0.23, 0.27, 0.13);
+        hips.add(bagFlap);
+
+        // legs (pivot at hip for stride)
+        function buildLeg(side) {
+          const hipPivot = new THREE.Group();
+          hipPivot.position.set(0.1 * side, -0.06, 0);
+          const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.28, 4, 6), pants);
+          upper.position.y = -0.17;
+          upper.castShadow = true;
+          hipPivot.add(upper);
+          const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.2, 4, 6), boots);
+          boot.position.y = -0.42;
+          boot.castShadow = true;
+          hipPivot.add(boot);
+          addOutline(upper, 0.05); addOutline(boot, 0.05);
+          return hipPivot;
+        }
+        const legL = buildLeg(-1); hips.add(legL);
+        const legR = buildLeg(1); hips.add(legR);
+
+        char.userData.parts = { hips, headGroup, armL, armR, legL, legR };
+        char.userData.walkPhase = 0;
+        return char;
+      }
+
+      const player = buildCharacter();
+      player.position.set(0, 0, 84.0); // start at the South Archway gate, facing into the city
+      player.rotation.y = Math.PI; // face north, looking into the city
+      scene.add(player);
+      player.visible = false; // Start in First-Person
+
+      // ============================================================
+      // CLICK-TO-MOVE CONTROLLER
+      // ============================================================
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const moveTarget = new THREE.Vector3().copy(player.position);
+      let isMoving = false;
+      const WALK_SPEED = 9.5;
+      const ARRIVE_EPS = 0.12;
+
+      // click marker (ring that pulses then fades)
+      function spawnClickMarker(pos) {
+        const ringGeo = new THREE.RingGeometry(0.25, 0.4, 24);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(pos.x, 0.05, pos.z);
+        scene.add(ring);
+        const start = performance.now();
+        function anim() {
+          const t = (performance.now() - start) / 600;
+          if (t >= 1) { scene.remove(ring); return; }
+          ring.scale.setScalar(1 + t * 1.2);
+          ringMat.opacity = 0.9 * (1 - t);
+          requestAnimationFrame(anim);
+        }
+        anim();
+      }
+
+      function groundIntersect(clientX, clientY) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hit = raycaster.intersectObject(ground)[0];
+        return hit ? hit.point : null;
+      }
+
+      function withinCityBounds(p) {
+        return Math.abs(p.x) < CITY_SIZE - 3 && Math.abs(p.z) < CITY_SIZE - 3;
+      }
+
+      // simple collision avoidance vs houses: if target point lands inside a footprint, push it to nearest edge
+      function resolveAgainstBuildings(p) {
+        for (const o of occupied) {
+          const halfW = o.w / 2, halfD = o.d / 2;
+          if (Math.abs(p.x - o.x) < halfW + 0.6 && Math.abs(p.z - o.z) < halfD + 0.6) {
+            const dx = p.x - o.x, dz = p.z - o.z;
+            const overlapX = (halfW + 0.6) - Math.abs(dx);
+            const overlapZ = (halfD + 0.6) - Math.abs(dz);
+            if (overlapX < overlapZ) p.x += Math.sign(dx || 1) * overlapX;
+            else p.z += Math.sign(dz || 1) * overlapZ;
+          }
+        }
+        return p;
+      }
+
+      let rightMouseDown = false, lastMouseX = 0, lastMouseY = 0;
+      let leftMouseDown = false, leftClickMoved = false;
+      let camYaw = 0, camPitch = 0, camDist = 5.5;
+
+      renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
+      renderer.domElement.addEventListener('mousedown', e => {
+        if (e.button === 0 || e.button === 2) {
+          rightMouseDown = true;
+          lastMouseX = e.clientX;
+          lastMouseY = e.clientY;
+          if (e.button === 0) {
+            leftClickStartX = e.clientX;
+            leftClickStartY = e.clientY;
+          }
+        }
+      });
+      window.addEventListener('mouseup', e => {
+        if (e.button === 0 || e.button === 2) {
+          rightMouseDown = false;
+          if (e.button === 0) {
+            const dx = e.clientX - leftClickStartX;
+            const dy = e.clientY - leftClickStartY;
+            // If the mouse moved very little, it's a click to move, not a drag!
+            if (Math.hypot(dx, dy) < 5) {
+              const p = groundIntersect(e.clientX, e.clientY);
+              if (p && withinCityBounds(p)) {
+                resolveAgainstBuildings(p);
+                moveTarget.set(p.x, 0, p.z);
+                isMoving = true;
+                spawnClickMarker(p);
+              }
+            }
+          }
+        }
+      });
+      window.addEventListener('mousemove', e => {
+        if (rightMouseDown) {
+          const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+          camYaw -= dx * 0.005;
+          // Expanded vertical range: -0.45 (look up at sky/sun) to 1.48 (look down at feet)
+          camPitch = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.004));
+          lastMouseX = e.clientX; lastMouseY = e.clientY;
+        }
+      });
+      renderer.domElement.addEventListener('wheel', e => {
+        camDist = Math.min(250, Math.max(5, camDist + e.deltaY * 0.08));
+      }, { passive: true });
+
+      // touch support (tap to move, one-finger drag to orbit, two-finger pinch to zoom)
+      let touchStartX = 0, touchStartY = 0, touchMoved = false;
+      let startDist = 0; // for pinch to zoom
+      let startCamDist = 11;
+
+      renderer.domElement.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+          const t = e.touches[0];
+          touchStartX = t.clientX; touchStartY = t.clientY; touchMoved = false;
+        } else if (e.touches.length === 2) {
+          touchMoved = true;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          startDist = Math.hypot(dx, dy);
+          startCamDist = camDist;
+          // record average starting position of two fingers for rotation
+          touchStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          touchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        }
+      }, { passive: true });
+
+      renderer.domElement.addEventListener('touchmove', e => {
+        if (e.touches.length === 1 && !startDist) {
+          const t = e.touches[0];
+          const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+          if (Math.abs(dx) + Math.abs(dy) > 4) {
+            touchMoved = true;
+            // One-finger swipe: look around (adjust yaw and pitch)
+            camYaw -= dx * 0.006;
+            // Expanded vertical range: -0.45 (look up at sky/sun) to 1.48 (look down at feet)
+            camPitch = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.005));
+            touchStartX = t.clientX; touchStartY = t.clientY;
+          }
+        } else if (e.touches.length === 2) {
+          touchMoved = true;
+          // Two-finger pinch: handle Zoom
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          if (startDist > 0) {
+            const factor = startDist / dist;
+            camDist = Math.min(250, Math.max(5, startCamDist * factor));
+          }
+        }
+      }, { passive: true });
+
+      renderer.domElement.addEventListener('touchend', e => {
+        if (e.touches.length < 2) {
+          startDist = 0; // reset pinch zoom state
+        }
+        // If it was a single tap, move the character to the clicked spot
+        if (e.changedTouches.length === 1 && !touchMoved) {
+          const t = e.changedTouches[0];
+          const p = groundIntersect(t.clientX, t.clientY);
+          if (p && withinCityBounds(p)) {
+            resolveAgainstBuildings(p);
+            moveTarget.set(p.x, 0, p.z);
+            isMoving = true;
+            spawnClickMarker(p);
+          }
+        }
+      });
+
+      // Keyboard movement states
+      const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+
+      window.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+        if (k in keys) keys[k] = true;
+        if (e.key in keys) keys[e.key] = true;
+      });
+      window.addEventListener('keyup', e => {
+        const k = e.key.toLowerCase();
+        if (k in keys) keys[k] = false;
+        if (e.key in keys) keys[e.key] = false;
+      });
+
+      /* Joystick JS removed */
+
+      // First-Person Mode Toggle
+      let isFirstPerson = true;
+      const btnViewMode = document.getElementById('btn-view-mode');
+
+      btnViewMode.addEventListener('click', e => {
+        e.stopPropagation();
+        isFirstPerson = !isFirstPerson;
+        if (isFirstPerson) {
+          btnViewMode.innerHTML = '👤 Third Person';
+          player.visible = false; // Hide character in First-Person
+          camPitch = 0; // Look straight ahead initially
+        } else {
+          btnViewMode.innerHTML = '👁️ First Person';
+          player.visible = true; // Show character in Third-Person
+          camPitch = 0.55; // Reset pitch
+          camDist = 5.5; // Reset distance
+        }
+      });
+      btnViewMode.addEventListener('touchstart', e => e.stopPropagation());
+
+
+
+      // (Old button panning logic removed in favor of direct swipe-to-look and virtual joystick movement)
+
+      // ============================================================
+      // ANIMATION LOOP
+      // ============================================================
+      const clock = new THREE.Clock();
+      const tmpDir = new THREE.Vector3();
+      let facing = 0;
+
+      function animate() {
+        const dt = Math.min(clock.getDelta(), 0.05);
+        const t = clock.elapsedTime;
+
+        // (Panning logic removed)
+
+        // Calculate movement vector from keyboard
+        const moveVec = new THREE.Vector3(0, 0, 0);
+
+        const pressW = keys.w || keys.ArrowUp;
+        const pressS = keys.s || keys.ArrowDown;
+        const pressA = keys.a || keys.ArrowLeft;
+        const pressD = keys.d || keys.ArrowRight;
+
+        if (pressW) moveVec.z -= 1;
+        if (pressS) moveVec.z += 1;
+        if (pressA) moveVec.x -= 1;
+        if (pressD) moveVec.x += 1;
+
+        let isPlayerMoving = false;
+
+        if (moveVec.lengthSq() > 0.01) {
+          // Interrupt active click-to-move path
+          isMoving = false;
+
+          moveVec.normalize();
+
+          // Transform movement direction relative to camera angle
+          const rightVec = new THREE.Vector3(Math.cos(camYaw), 0, -Math.sin(camYaw));
+          const forwardVec = new THREE.Vector3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
+          
+          const worldMove = new THREE.Vector3(0, 0, 0);
+          worldMove.addScaledVector(forwardVec, -moveVec.z);
+          worldMove.addScaledVector(rightVec, moveVec.x);
+          worldMove.normalize();
+
+          const step = WALK_SPEED * dt;
+          const nextPos = player.position.clone().addScaledVector(worldMove, step);
+
+          if (withinCityBounds(nextPos)) {
+            resolveAgainstBuildings(nextPos);
+            player.position.copy(nextPos);
+          }
+
+          // Smoothly rotate character to face the walk direction
+          const targetFacing = Math.atan2(worldMove.x, worldMove.z);
+          let diff = targetFacing - facing;
+          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+          facing += diff * Math.min(1, dt * 10);
+          player.rotation.y = facing;
+
+          isPlayerMoving = true;
+        } else if (isMoving) {
+          // Process click-to-move path
+          tmpDir.set(moveTarget.x - player.position.x, 0, moveTarget.z - player.position.z);
+          const dist = tmpDir.length();
+          if (dist < ARRIVE_EPS) {
+            isMoving = false;
+          } else {
+            tmpDir.normalize();
+            const step = Math.min(dist, WALK_SPEED * dt);
+            const nextPos = player.position.clone().addScaledVector(tmpDir, step);
+
+            if (withinCityBounds(nextPos)) {
+              resolveAgainstBuildings(nextPos);
+              player.position.copy(nextPos);
+            }
+
+            const targetFacing = Math.atan2(tmpDir.x, tmpDir.z);
+            let diff = targetFacing - facing;
+            diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+            facing += diff * Math.min(1, dt * 10);
+            player.rotation.y = facing;
+
+            isPlayerMoving = true;
+          }
+        }
+
+        // walk-cycle animation
+        const parts = player.userData.parts;
+        const HIPS_BASE_Y = 0.67; // must match the calibrated value set in buildCharacter()
+        if (parts) {
+          if (isPlayerMoving) {
+            player.userData.walkPhase += dt * 9;
+            const ph = player.userData.walkPhase;
+            parts.legL.rotation.x = Math.sin(ph) * 0.55;
+            parts.legR.rotation.x = Math.sin(ph + Math.PI) * 0.55;
+            parts.armL.rotation.x = Math.sin(ph + Math.PI) * 0.45;
+            parts.armR.rotation.x = Math.sin(ph) * 0.45;
+            parts.hips.position.y = HIPS_BASE_Y + Math.abs(Math.sin(ph * 2)) * 0.035;
+            parts.headGroup.rotation.z = Math.sin(ph) * 0.03;
+          } else {
+            // idle settle with gentle breathing bob
+            const decay = 1 - Math.min(1, dt * 6);
+            parts.legL.rotation.x *= decay; parts.legR.rotation.x *= decay;
+            parts.armL.rotation.x *= decay; parts.armR.rotation.x *= decay;
+            parts.hips.position.y = HIPS_BASE_Y + Math.sin(t * 1.6) * 0.008;
+            parts.headGroup.rotation.z *= decay;
+          }
+        }
+
+        // birds gentle bob
+        // (kept static for perf simplicity; could animate flight paths later)
+
+        // road issue markers: flickering broken lights + dripping leaks
+        for (let i = 0; i < roadIssues.length; i++) {
+          const issue = roadIssues[i];
+          if (issue.type === 'brokenLight' && issue.mesh.userData.light) {
+            issue.mesh.userData.light.intensity = 0.1 + (Math.sin(t * 9 + i * 3.1) * 0.5 + 0.5) * 0.7;
+          } else if (issue.type === 'waterLeak' && issue.mesh.userData.drip) {
+            issue.mesh.userData.drip.position.y = 0.42 + Math.sin(t * 4 + i) * 0.04;
+          }
+        }
+
+        // ---------- Animate Busy Citizens ----------
+        busyCitizens.forEach((cit) => {
+          cit.phase += dt * 4.5;
+          const p = cit.phase;
+          
+          if (cit.type === 'cleaning') {
+            const sweepOffset = Math.sin(p) * 0.12;
+            const tempOffset = cit.toolOffset.clone()
+              .add(new THREE.Vector3(sweepOffset, 0, Math.abs(sweepOffset) * 0.25))
+              .applyAxisAngle(new THREE.Vector3(0, 1, 0), cit.baseRot);
+            
+            cit.tool.position.copy(cit.basePos).add(tempOffset);
+            cit.tool.rotation.copy(cit.toolBaseRot);
+            cit.tool.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), cit.baseRot + Math.sin(p) * 0.15);
+            cit.char.rotation.y = cit.baseRot + Math.sin(p) * 0.05;
+            
+          } else if (cit.type === 'digging') {
+            const digDepth = Math.sin(p) * 0.12;
+            const digForward = Math.cos(p) * 0.08;
+            const tempOffset = cit.toolOffset.clone()
+              .add(new THREE.Vector3(0, digDepth, digForward))
+              .applyAxisAngle(new THREE.Vector3(0, 1, 0), cit.baseRot);
+            
+            cit.tool.position.copy(cit.basePos).add(tempOffset);
+            cit.tool.rotation.copy(cit.toolBaseRot);
+            cit.tool.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), Math.sin(p) * 0.12);
+            cit.tool.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), cit.baseRot);
+            cit.char.position.y = Math.max(0, -digDepth * 0.4);
+            
+          } else if (cit.type === 'planting') {
+            cit.char.position.y = Math.sin(p) * 0.03;
+            cit.char.rotation.x = Math.sin(p) * 0.05;
+            
+          } else if (cit.type === 'throwing') {
+            const throwMove = Math.sin(p) * 0.08;
+            if (cit.char.userData.garbageMesh) {
+              const tempOffset = cit.char.userData.garbageBaseOffset.clone()
+                .add(new THREE.Vector3(throwMove, Math.sin(p * 2) * 0.03, throwMove * 0.5));
+              cit.char.userData.garbageMesh.position.copy(cit.basePos).add(tempOffset);
+            }
+          }
+        });
+
+        if (isFirstPerson) {
+          // ---------- First-Person View (FPV) ----------
+          let bobY = 0;
+          if (isPlayerMoving) {
+            bobY = Math.sin(t * 14) * 0.025; // Immersive head bob when walking
+          }
+          
+          // Position camera exactly at player's eye level
+          camera.position.set(player.position.x, player.position.y + 1.62 + bobY, player.position.z);
+          
+          // Calculate view target pointing outwards from the head
+          const lookTarget = new THREE.Vector3(
+            camera.position.x - Math.sin(camYaw) * Math.cos(camPitch),
+            camera.position.y + Math.sin(camPitch),
+            camera.position.z - Math.cos(camYaw) * Math.cos(camPitch)
+          );
+          camera.lookAt(lookTarget);
+        } else {
+          // ---------- Third-Person View (TPV) ----------
+          const camOffset = new THREE.Vector3(
+            Math.sin(camYaw) * Math.cos(camPitch),
+            Math.sin(camPitch),
+            Math.cos(camYaw) * Math.cos(camPitch)
+          ).multiplyScalar(camDist);
+          
+          const focusPoint = player.position.clone().add(new THREE.Vector3(0, 1.3, 0));
+          const desiredCamPos = focusPoint.clone().add(camOffset).add(new THREE.Vector3(0, 0.1, 0));
+          
+          camera.position.lerp(desiredCamPos, 1 - Math.pow(0.0001, dt));
+          camera.lookAt(focusPoint);
+        }
+
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      }
+
+      // initial camera snap (avoid lerp-in from origin)
+      camera.position.set(0, 9, 33);
+      camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1.3, 0)));
+
+      window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      // kick off
+      requestAnimationFrame(animate);
+      loadingEl.style.opacity = '0';
+      setTimeout(() => loadingEl.remove(), 650);
+    }
+
+    buildWorld().catch(err => {
+      console.error('Failed to build world:', err);
+      const loadingEl = document.getElementById('loading');
+      if (loadingEl) loadingEl.innerHTML = '<div class="spinner" style="border-top-color:#b5302a"></div><p style="color:#b5302a">Could not load city assets — check the console for details.</p>';
+    });
+
+  </script>
+</body>
+
+</html>

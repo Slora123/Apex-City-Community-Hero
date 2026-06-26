@@ -1,0 +1,591 @@
+:root {
+  --font-family: 'Inter', system-ui, sans-serif;
+  
+  --bg-color: #2D1B13; /* Dark earthy background */
+  --panel-bg: rgba(60, 42, 33, 0.9); /* Wood-like brown */
+  --panel-border: #8B5E34;
+  
+  --text-main: #F4E8C1; /* Parchment text color */
+  --text-muted: #B3A387;
+  
+  --primary-color: #5D8A46; /* Heroic green */
+  --primary-hover: #4A6E38;
+  
+  --secondary-color: #9C512A; /* Terra cotta */
+  --secondary-hover: #7D4122;
+
+  --accent-color: #D4AF37; /* Gold for coins/xp */
+  
+  --danger-color: #B53F3F; /* Red for unresolved/urgent */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  background-image: url('/map_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* iOS Safari: background-attachment: fixed is broken on mobile.
+   Switch to scroll so the map still shows correctly. */
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
+/* UI Elements */
+.medieval-panel {
+  background-color: var(--panel-bg);
+  border: 4px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+  /* Optional: use generated panel_bg as border-image or background for more flavor */
+  background-image: url('/panel_bg.png');
+  background-size: 100% 100%;
+  padding: 24px;
+}
+
+.medieval-btn {
+  background-color: var(--primary-color);
+  color: var(--text-main);
+  border: 3px solid #2B4522;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 0 #2B4522, 0 5px 10px rgba(0,0,0,0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  touch-action: manipulation; /* Disable double-tap zoom on iOS */
+  min-height: 44px; /* Accessible tap target size */
+}
+
+.medieval-btn:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #2B4522, 0 3px 5px rgba(0,0,0,0.5);
+}
+
+.medieval-btn:active {
+  transform: translateY(4px);
+  box-shadow: none;
+}
+
+.medieval-btn.secondary {
+  background-color: var(--secondary-color);
+  border-color: #5C2D16;
+  box-shadow: 0 4px 0 #5C2D16, 0 5px 10px rgba(0,0,0,0.5);
+}
+
+.medieval-btn.secondary:hover {
+  background-color: var(--secondary-hover);
+  box-shadow: 0 2px 0 #5C2D16, 0 3px 5px rgba(0,0,0,0.5);
+}
+
+.glass-panel {
+  background: rgba(30, 20, 15, 0.7);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 0px #000, 4px 4px 0px rgba(0,0,0,0.5);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Stone panel styling matching landing_ref.png */
+.stone-panel-ref {
+  background-color: #BDB0A0;
+  background-image: linear-gradient(135deg, #c7baa8 0%, #b2a593 100%);
+  border: 4px double #4A3B32;
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  box-shadow: 
+    inset 0 0 15px rgba(0, 0, 0, 0.15),
+    0 8px 16px rgba(0, 0, 0, 0.4);
+  color: #4A3B32;
+  font-family: 'MedievalSharp', 'Palatino', 'Georgia', serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stone-panel-ref:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    inset 0 0 15px rgba(0, 0, 0, 0.15),
+    0 12px 24px rgba(0, 0, 0, 0.5);
+}
+
+.stone-panel-title {
+  font-size: clamp(0.75rem, 2vw, 1.1rem);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+  color: #3C2D24;
+}
+
+.stone-panel-value {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 900;
+  color: #2E2018;
+  line-height: 1.1;
+}
+
+/* ================================================================
+   RESPONSIVE PAGE CONTAINERS
+   (inline styles can't have @media, so we use classes here)
+   ================================================================ */
+
+/* ---- Avatar Creation ------------------------------------------ */
+.avatar-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  /* Generous padding on desktop, tight on mobile so card fills screen */
+  padding: clamp(6px, 4vw, 24px);
+  box-sizing: border-box;
+}
+
+.avatar-card-outer {
+  position: relative;
+  width: 100%;
+  /* Never wider than 680px; on mobile uses nearly full width */
+  max-width: min(680px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Avatar labels: need to scale with the card, not the full viewport.
+   The card is ~96vw on mobile, ~47vw on 1440px desktop.
+   We want ~14px at desktop card width, ~12px on small phones. */
+.avatar-label {
+  font-family: 'MedievalSharp', serif;
+  font-weight: bold;
+  color: #3C2A1E;
+  text-shadow: 1px 1px 0px rgba(255,255,255,0.4);
+  /* clamp: min 11px, preferred 3.2vw (works out to ~12-14px on phones), max 18px */
+  font-size: clamp(11px, 3.2vw, 18px);
+}
+
+/* Hero name label inside the pill */
+.hero-name-label {
+  font-family: 'MedievalSharp', serif;
+  font-weight: bold;
+  color: #c9a063;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #000;
+  font-size: clamp(11px, 2.8vw, 15px);
+}
+
+@media (max-width: 480px) {
+  .avatar-page {
+    /* Barely any padding — card fills the screen edge-to-edge */
+    padding: 6px;
+    justify-content: center;
+  }
+}
+
+/* Landscape on phones: card may be taller than viewport; allow scroll */
+@media (max-height: 500px) and (orientation: landscape) {
+  .avatar-page {
+    justify-content: flex-start;
+    padding-top: 8px;
+    min-height: auto;
+  }
+}
+
+/* ---- Login ---------------------------------------------------- */
+.login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: clamp(8px, 4vw, 24px);
+  box-sizing: border-box;
+}
+
+.login-card {
+  position: relative;
+  width: 100%;
+  max-width: min(520px, 100%);
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 8px;
+  }
+}
+
+/* ================================================================
+   HOME / DASHBOARD SCREEN
+   Full-screen medieval town with floating UI overlays.
+   ================================================================ */
+
+/* Full-screen wrapper — background switches for mobile */
+.home-screen {
+  position: fixed;
+  inset: 0;
+  background-image: url('/home_ref_bg.png');
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .home-screen {
+    /* Portrait-optimised town illustration for phones */
+    background-image: url('/home_ref_mobile_bg.png');
+    background-position: top center;
+  }
+}
+
+/* ── TOP STATS CONTAINER ───────────────────────────────────── */
+.home-stats-container {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 380px;
+  max-width: calc(100vw - 210px);
+  z-index: 10;
+}
+
+.home-stats-card {
+  background: rgba(46, 26, 10, 0.93);
+  border: 2px solid #7A4A22;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-stats-card--level {
+  width: 100%;
+}
+
+.home-stats-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.home-stats-card--sub {
+  flex: 1;
+}
+
+/* Level badge circle */
+.home-level-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+.home-level-num {
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: #F4E8C1;
+  line-height: 1;
+}
+
+/* Level label + XP progress */
+.home-level-info {
+  min-width: 160px;
+}
+.home-stats-label {
+  font-size: 0.73rem;
+  color: #A89880;
+  font-weight: 600;
+  margin-bottom: 5px;
+  white-space: nowrap;
+}
+.home-xp-note {
+  color: #7A6A58;
+  font-weight: 400;
+}
+.home-xp-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.home-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2E6B2A, #5DB356);
+  border-radius: 99px;
+  transition: width 0.6s ease;
+  box-shadow: 0 0 6px rgba(93,179,86,0.6);
+}
+
+/* Small icon bubbles for Hero Points / Rank */
+.home-stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.home-stat-icon--blue {
+  background: rgba(99,179,237,0.18);
+  border: 1px solid rgba(99,179,237,0.35);
+}
+.home-stat-icon--gold {
+  background: rgba(236,201,75,0.18);
+  border: 1px solid rgba(236,201,75,0.35);
+}
+.home-stats-value {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #F4E8C1;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* ── ISSUES LEGEND ─────────────────────────────────────────── */
+.home-issues-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(46, 26, 10, 0.93);
+  border: 2px solid #7A4A22;
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(6px);
+  min-width: 170px;
+}
+.home-issues-title {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #A89880;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.home-issue-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.home-issue-row:last-child { margin-bottom: 0; }
+.home-issue-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+  box-shadow: 0 0 5px currentColor;
+}
+.home-issue-status {
+  font-size: 0.68rem;
+  color: #A89880;
+  line-height: 1.3;
+}
+.home-issue-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #F4E8C1;
+  line-height: 1.2;
+}
+.home-no-issues {
+  font-size: 0.78rem;
+  color: #A89880;
+  font-style: italic;
+  text-align: center;
+  padding: 8px 0;
+}
+
+/* ── BOTTOM NAVIGATION PILL ────────────────────────────────── */
+.home-bottom-nav {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(30, 16, 6, 0.95);
+  border: 2px solid #7A4A22;
+  border-radius: 9999px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(10px);
+  /* Prevent pill from being wider than the screen */
+  max-width: calc(100vw - 32px);
+}
+
+.home-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 22px;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: #7A6A58;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.7rem;
+  font-weight: 600;
+  min-width: 60px;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: inherit;
+}
+.home-nav-btn--active {
+  background: rgba(212,175,55,0.18);
+  color: #D4AF37;
+}
+.home-nav-btn:hover:not(.home-nav-btn--active) {
+  color: #B3A387;
+  background: rgba(255,255,255,0.06);
+}
+.home-nav-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── MOBILE ADAPTATIONS (≤ 600 px) ────────────────────────── */
+@media (max-width: 600px) {
+  /* Stats container and cards adaptation */
+  .home-stats-container {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    gap: 6px;
+  }
+  .home-stats-card {
+    padding: 8px 12px;
+    border-radius: 12px;
+    gap: 10px;
+  }
+  .home-level-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  /* Issues panel: move to bottom-right, above the nav pill */
+  .home-issues-panel {
+    top: auto;
+    right: 10px;
+    bottom: 90px;         /* sit just above the bottom nav */
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  /* Bottom nav: a little more compact */
+  .home-bottom-nav {
+    bottom: 12px;
+    padding: 6px 8px;
+    gap: 0;
+  }
+  .home-nav-btn {
+    padding: 7px 16px;
+    font-size: 0.65rem;
+    min-width: 52px;
+  }
+}
+
+/* ── EXTRA SMALL PHONES (≤ 360 px) ────────────────────────── */
+@media (max-width: 360px) {
+  .home-level-info { min-width: 0; }
+  .home-stats-label { font-size: 0.65rem; }
+  .home-stats-value { font-size: 0.88rem; }
+  .home-nav-btn {
+    padding: 7px 10px;
+    min-width: 44px;
+    font-size: 0.6rem;
+  }
+}
+
+/* ── LANDSCAPE PHONES ──────────────────────────────────────── */
+@media (max-width: 900px) and (orientation: landscape) {
+  .home-stats-container {
+    flex-direction: row;
+    width: auto;
+    max-width: calc(100vw - 190px);
+    gap: 6px;
+  }
+  .home-stats-row {
+    width: auto;
+    gap: 6px;
+  }
+  .home-stats-card {
+    padding: 6px 10px;
+    border-radius: 10px;
+    gap: 8px;
+  }
+  .home-level-info {
+    min-width: 120px;
+  }
+  .home-issues-panel {
+    top: 10px;
+    bottom: auto;
+    right: 10px;
+  }
+  .home-bottom-nav { bottom: 8px; }
+}

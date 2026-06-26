@@ -1,0 +1,218 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getMe, getMissions, submitIssue, getStoredUser, getToken } from '../api';
+import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+
+const GameContext = createContext();
+
+export const useGame = () => useContext(GameContext);
+
+export const GameProvider = ({ children }) => {
+  const [hero, setHero] = useState(() => {
+    // Hydrate from localStorage on first render
+    const stored = getStoredUser();
+    return stored ? {
+      id: stored.id,
+      name: stored.name || 'Hero',
+      avatar: stored.avatar || 'male',
+      level: stored.level || 1,
+      xp: stored.xp || 0,
+      rank: stored.rank || 'Novice Hero',
+      city: stored.city || '',
+      area: stored.area || '',
+      email: stored.email || ''
+    } : {
+      id: null,
+      name: 'Hero',
+      avatar: 'male',
+      level: 1,
+      xp: 0,
+      rank: 'Novice Hero',
+      city: '',
+      area: ''
+    };
+  });
+
+  const [missions, setMissions] = useState([]);
+  const [isBackendOnline, setIsBackendOnline] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ── Fetch real hero data from backend ──────────────────────────────────
+  const refreshHero = useCallback(async () => {
+    if (!getToken()) return;
+    try {
+      const data = await getMe();
+      const updated = {
+        id: data.id,
+        name: data.name,
+        avatar: data.avatar || 'male',
+        level: data.level,
+        xp: data.xp,
+        rank: data.rank,
+        city: data.city,
+        area: data.area,
+        email: data.email
+      };
+      setHero(updated);
+      localStorage.setItem('ch_user', JSON.stringify({ ...data }));
+    } catch (err) {
+      // Backend offline — keep local state
+      console.warn('Backend offline, using local state:', err.message);
+    }
+  }, []);
+
+  // ── Fetch missions from backend ────────────────────────────────────────
+  const refreshMissions = useCallback(async () => {
+    try {
+      const data = await getMissions({ status: 'all' });
+      if (data && data.missions) {
+        const mapped = data.missions.map(m => ({
+          id: m.id,
+          title: m.issue_title || m.title || 'Unknown Mission',
+          type: m.issue_type || m.type || 'other',
+          status: m.status === 'completed' ? 'solved' : m.status === 'active' ? 'pending' : 'available',
+          location: m.address || 'Unknown Location',
+          description: m.description || '',
+          severity: m.severity || 'medium',
+          category: m.category || '',
+          lat: m.issue_lat,
+          lng: m.issue_lng,
+          distance: m.distance,
+          beforePhotoUrl: m.beforePhotoUrl,
+          afterPhotoUrl: m.afterPhotoUrl,
+          issueId: m.issue_id,
+          backendId: m.id
+        }));
+        setMissions(mapped);
+        setIsBackendOnline(true);
+      }
+    } catch (err) {
+      console.warn('Could not fetch missions from backend:', err.message);
+      setIsBackendOnline(false);
+    }
+  }, []);
+
+  // ── On mount: check backend and load data ─────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          setIsBackendOnline(true);
+          await Promise.all([refreshHero(), refreshMissions()]);
+        } else {
+          setIsBackendOnline(false);
+          setMissions([]);
+        }
+      } catch {
+        setIsBackendOnline(false);
+        setMissions([]);
+      }
+    };
+    init();
+  }, [refreshHero, refreshMissions]);
+
+  // ── Sync with Firebase Auth state changes ─────────────────────────────
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!firebaseUser) {
+        // Firebase signed out — clear local storage and local state
+        if (getToken()) {
+          console.log('🔒 Firebase session ended. Restoring local state to guest.');
+          localStorage.removeItem('ch_token');
+          localStorage.removeItem('ch_user');
+          setHero({
+            id: null,
+            name: 'Hero',
+            avatar: 'male',
+            level: 1,
+            xp: 0,
+            rank: 'Novice Hero',
+            city: '',
+            area: '',
+            email: ''
+          });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // ── Local-only XP add (used as fallback / optimistic update) ──────────
+  const addXp = (amount) => {
+    setHero(prev => {
+      let newXp = prev.xp + amount;
+      let newLevel = prev.level;
+      if (newXp >= 5000) {
+        newLevel += 1;
+        newXp -= 5000;
+      }
+      const updated = { ...prev, xp: newXp, level: newLevel };
+      localStorage.setItem('ch_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // ── Update mission status locally ──────────────────────────────────────
+  const updateMissionStatus = (id, newStatus) => {
+    setMissions(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
+  };
+
+  // ── Report issue — strictly calls backend API ────────────────────────
+  const reportIssue = async (newIssue, photoFile = null) => {
+    if (!getToken()) {
+      throw new Error('Player is not authenticated. Please log in.');
+    }
+    if (!isBackendOnline) {
+      throw new Error('Municipal server is currently offline. Unable to submit report.');
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await submitIssue({
+        title: newIssue.title,
+        type: newIssue.type,
+        lat: newIssue.lat,
+        lng: newIssue.lng,
+        address: newIssue.location,
+        description: newIssue.description,
+        severity: newIssue.severity,
+        category: newIssue.category,
+        photo: photoFile
+      });
+
+      // Award XP optimistically if backend succeeded
+      if (result.pointsAwarded) {
+        addXp(result.pointsAwarded);
+      }
+
+      // Refresh missions list to include new one
+      await refreshMissions();
+
+      return result;
+    } catch (err) {
+      console.error('Backend report failed:', err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <GameContext.Provider value={{
+      hero,
+      setHero,
+      addXp,
+      missions,
+      setMissions,
+      updateMissionStatus,
+      reportIssue,
+      refreshHero,
+      refreshMissions,
+      isBackendOnline,
+      isLoading
+    }}>
+      {children}
+    </GameContext.Provider>
+  );
+};
