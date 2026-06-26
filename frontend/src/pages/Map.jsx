@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Map, CheckSquare, Trophy, Scroll, Activity, MapPin as MapPinIcon } from 'lucide-react';
+import { useGame } from '../context/GameContext';
 
 /* ─────────────────────────────────────────────────────────────
    NAV CONFIG
@@ -21,12 +22,16 @@ const NAV_ITEMS = [
 export default function MapPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hero } = useGame();
+
+  const avatarUrl = hero?.avatar || 'male';
+  const iframeSrc = `/map.html?avatar=${encodeURIComponent(avatarUrl)}`;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#0A0604', fontFamily: 'Inter, sans-serif' }}>
       {/* 3D Toon City Map Iframe */}
       <iframe
-        src="/map.html"
+        src={iframeSrc}
         style={{
           width: '100%',
           height: '100%',

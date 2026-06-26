@@ -1651,14 +1651,22 @@
       }
 
       // ============================================================
-      // CHARACTER — stylized low-poly woman, procedurally built & rigged
+      // CHARACTER — stylized low-poly hero, procedurally built & rigged
       // ============================================================
       function buildCharacter() {
         const char = new THREE.Group();
 
+        // Parse query parameter to determine gender/avatar type
+        const urlParams = new URLSearchParams(window.location.search);
+        const avatarParam = urlParams.get('avatar') || 'male';
+        const isFemale = avatarParam === 'female' || avatarParam.includes('avtar2');
+
         const skin = toonMat(0xf6d2ae);
-        const hair = toonMat(0x4caf6f);
-        const hairDark = toonMat(0x3a8f58);
+        // Female hair is green, Male hair is brown
+        const hairColorHex = isFemale ? 0x4caf6f : 0x5c4033;
+        const hair = toonMat(hairColorHex);
+        const hairDark = toonMat(isFemale ? 0x3a8f58 : 0x3d2b22);
+        
         const vest = toonMat(0x2f7a6b);
         const shirt = toonMat(0xfaf5e9);
         const pants = toonMat(0x6b6450);
@@ -1707,47 +1715,89 @@
         chin.scale.set(0.82, 0.7, 0.78);
         headGroup.add(chin);
 
-        // rosy cheeks
-        [-0.16, 0.16].forEach(cx => {
-          const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), cheekMat);
-          cheek.position.set(cx, -0.06, 0.275);
-          headGroup.add(cheek);
-        });
+        // rosy cheeks (only for female character)
+        if (isFemale) {
+          [-0.16, 0.16].forEach(cx => {
+            const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), cheekMat);
+            cheek.position.set(cx, -0.06, 0.275);
+            headGroup.add(cheek);
+          });
+        }
 
-        // ---- HAIR — green bob, side-swept fringe, volume at crown ----
-        const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.345, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
-        hairCap.position.y = 0.05;
-        hairCap.scale.set(1.0, 1.05, 0.98);
-        headGroup.add(hairCap);
-        addOutline(hairCap, 0.035);
+        // ---- HAIR & CAP ----
+        if (isFemale) {
+          // ---- HAIR — green bob, side-swept fringe, volume at crown ----
+          const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.345, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
+          hairCap.position.y = 0.05;
+          hairCap.scale.set(1.0, 1.05, 0.98);
+          headGroup.add(hairCap);
+          addOutline(hairCap, 0.035);
 
-        const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), hair);
-        hairBack.position.set(0, -0.1, -0.08);
-        hairBack.scale.set(1.05, 1.25, 1.05);
-        headGroup.add(hairBack);
-        addOutline(hairBack, 0.03);
+          const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), hair);
+          hairBack.position.set(0, -0.1, -0.08);
+          hairBack.scale.set(1.05, 1.25, 1.05);
+          headGroup.add(hairBack);
+          addOutline(hairBack, 0.03);
 
-        // side-swept fringe pieces (asymmetric, sweeping toward one side like the reference)
-        const fringeL = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 6), hairDark);
-        fringeL.position.set(-0.2, 0.1, 0.26);
-        fringeL.rotation.set(0.3, 0, 0.5);
-        headGroup.add(fringeL);
-        const fringeR = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.2, 6), hairDark);
-        fringeR.position.set(0.15, 0.13, 0.27);
-        fringeR.rotation.set(0.25, 0, -0.35);
-        headGroup.add(fringeR);
-        const fringeC = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 6), hair);
-        fringeC.position.set(-0.02, 0.18, 0.29);
-        fringeC.rotation.set(0.2, 0, 0.15);
-        headGroup.add(fringeC);
+          // side-swept fringe pieces (asymmetric, sweeping toward one side like the reference)
+          const fringeL = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.22, 6), hairDark);
+          fringeL.position.set(-0.2, 0.1, 0.26);
+          fringeL.rotation.set(0.3, 0, 0.5);
+          headGroup.add(fringeL);
+          const fringeR = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.2, 6), hairDark);
+          fringeR.position.set(0.15, 0.13, 0.27);
+          fringeR.rotation.set(0.25, 0, -0.35);
+          headGroup.add(fringeR);
+          const fringeC = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.16, 6), hair);
+          fringeC.position.set(-0.02, 0.18, 0.29);
+          fringeC.rotation.set(0.2, 0, 0.15);
+          headGroup.add(fringeC);
 
-        // side locks framing the face down to the jaw
-        [-1, 1].forEach(s => {
-          const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.22, 4, 6), hair);
-          lock.position.set(s * 0.27, -0.08, 0.08);
-          lock.rotation.z = s * 0.12;
-          headGroup.add(lock);
-        });
+          // side locks framing the face down to the jaw
+          [-1, 1].forEach(s => {
+            const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.22, 4, 6), hair);
+            lock.position.set(s * 0.27, -0.08, 0.08);
+            lock.rotation.z = s * 0.12;
+            headGroup.add(lock);
+          });
+        } else {
+          // ---- MALE: short brown hair + brown cap/hat ----
+          // Cap dome
+          const capMat = toonMat(0x6b4226); // brown cap
+          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.52), capMat);
+          cap.position.set(0, 0.09, -0.04);
+          cap.rotation.x = -0.15; // tilt cap back slightly
+          cap.scale.set(1.03, 0.9, 1.05);
+          headGroup.add(cap);
+          addOutline(cap, 0.032);
+          
+          // Cap brim/visor
+          const visor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.04, 0.18), capMat);
+          visor.position.set(0, 0.08, 0.23);
+          visor.rotation.x = 0.08;
+          headGroup.add(visor);
+          addOutline(visor, 0.03);
+
+          // Short hair peeking from under cap
+          const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.31, 12, 10), hair);
+          hairBack.position.set(0, -0.04, -0.08);
+          hairBack.scale.set(1.02, 0.98, 1.02);
+          headGroup.add(hairBack);
+          addOutline(hairBack, 0.03);
+
+          // short sideburns
+          [-1, 1].forEach(s => {
+            const sideburn = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.08, 4, 6), hair);
+            sideburn.position.set(s * 0.28, -0.08, 0.05);
+            headGroup.add(sideburn);
+          });
+
+          // simple fringe peeking at front under visor
+          const fringe = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.12, 6), hair);
+          fringe.position.set(-0.04, 0.06, 0.24);
+          fringe.rotation.set(0.12, 0, 0.15);
+          headGroup.add(fringe);
+        }
 
         // ---- FACE: bigger eyes with highlight, soft brow, small nose/mouth hint ----
         const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xfdfdf8 });
@@ -1770,18 +1820,28 @@
         mouth.position.set(0, -0.16, 0.315);
         headGroup.add(mouth);
 
-        // arms (pivot at shoulder for swing) — puffy sleeve at top, slim forearm
+        // arms (pivot at shoulder for swing) — puffy sleeve at top for female, standard sleeve for male
         function buildArm(side) {
           const shoulder = new THREE.Group();
           shoulder.position.set(0.27 * side, 0.58, 0);
-          const puff = new THREE.Mesh(new THREE.SphereGeometry(0.115, 8, 8), shirt);
-          puff.position.y = -0.05;
-          shoulder.add(puff);
+          
+          if (isFemale) {
+            const puff = new THREE.Mesh(new THREE.SphereGeometry(0.115, 8, 8), shirt);
+            puff.position.y = -0.05;
+            shoulder.add(puff);
+          } else {
+            // standard shoulder sleeve cap
+            const sleeveCap = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.07, 8), shirt);
+            sleeveCap.position.y = -0.04;
+            shoulder.add(sleeveCap);
+          }
+
           const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.26, 4, 6), shirt);
           upper.position.y = -0.18;
           upper.castShadow = true;
           shoulder.add(upper);
           addOutline(upper, 0.05);
+          
           const hand = new THREE.Mesh(new THREE.SphereGeometry(0.068, 8, 8), skin);
           hand.position.y = -0.34;
           shoulder.add(hand);
@@ -1790,19 +1850,21 @@
         const armL = buildArm(-1); hips.add(armL);
         const armR = buildArm(1); hips.add(armR);
 
-        // satchel bag + strap (decorative, static)
-        const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 0.04), bagMat);
-        strap.position.set(-0.14, 0.5, 0.1);
-        strap.rotation.z = 0.5;
-        hips.add(strap);
-        const bag = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.13), bagMat);
-        bag.position.set(0.23, 0.14, 0.13);
-        bag.rotation.z = 0.12;
-        hips.add(bag);
-        addOutline(bag, 0.03);
-        const bagFlap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.15), toonMat(0x6f4525));
-        bagFlap.position.set(0.23, 0.27, 0.13);
-        hips.add(bagFlap);
+        // satchel bag + strap (only for female character)
+        if (isFemale) {
+          const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.62, 0.04), bagMat);
+          strap.position.set(-0.14, 0.5, 0.1);
+          strap.rotation.z = 0.5;
+          hips.add(strap);
+          const bag = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.13), bagMat);
+          bag.position.set(0.23, 0.14, 0.13);
+          bag.rotation.z = 0.12;
+          hips.add(bag);
+          addOutline(bag, 0.03);
+          const bagFlap = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.1, 0.15), toonMat(0x6f4525));
+          bagFlap.position.set(0.23, 0.27, 0.13);
+          hips.add(bagFlap);
+        }
 
         // legs (pivot at hip for stride)
         function buildLeg(side) {
@@ -1892,35 +1954,36 @@
 
       let rightMouseDown = false, lastMouseX = 0, lastMouseY = 0;
       let leftMouseDown = false, leftClickMoved = false;
+      let leftClickStartX = 0, leftClickStartY = 0;
       let camYaw = 0, camPitch = 0, camDist = 5.5;
 
       renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
       renderer.domElement.addEventListener('mousedown', e => {
-        if (e.button === 0 || e.button === 2) {
+        if (e.button === 0) {
+          leftClickStartX = e.clientX;
+          leftClickStartY = e.clientY;
+        }
+        if (e.button === 2) {
           rightMouseDown = true;
           lastMouseX = e.clientX;
           lastMouseY = e.clientY;
-          if (e.button === 0) {
-            leftClickStartX = e.clientX;
-            leftClickStartY = e.clientY;
-          }
         }
       });
       window.addEventListener('mouseup', e => {
-        if (e.button === 0 || e.button === 2) {
+        if (e.button === 2) {
           rightMouseDown = false;
-          if (e.button === 0) {
-            const dx = e.clientX - leftClickStartX;
-            const dy = e.clientY - leftClickStartY;
-            // If the mouse moved very little, it's a click to move, not a drag!
-            if (Math.hypot(dx, dy) < 5) {
-              const p = groundIntersect(e.clientX, e.clientY);
-              if (p && withinCityBounds(p)) {
-                resolveAgainstBuildings(p);
-                moveTarget.set(p.x, 0, p.z);
-                isMoving = true;
-                spawnClickMarker(p);
-              }
+        }
+        if (e.button === 0) {
+          const dx = e.clientX - leftClickStartX;
+          const dy = e.clientY - leftClickStartY;
+          // If the mouse moved very little, it's a click to move, not a drag!
+          if (Math.hypot(dx, dy) < 5) {
+            const p = groundIntersect(e.clientX, e.clientY);
+            if (p && withinCityBounds(p)) {
+              resolveAgainstBuildings(p);
+              moveTarget.set(p.x, 0, p.z);
+              isMoving = true;
+              spawnClickMarker(p);
             }
           }
         }

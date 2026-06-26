@@ -252,7 +252,8 @@ export default function Leaderboard() {
             xp: u.xp,
             avatar: u.avatar || '🧙',
             rankName: u.rank || 'Guild Member',
-            isCurrentUser: u.isCurrentUser || false
+            isCurrentUser: u.isCurrentUser || false,
+            totalMissions: u.totalMissions || 0
           })));
         }
       } catch (err) {
@@ -720,7 +721,7 @@ export default function Leaderboard() {
           borderTop: '2.5px solid #5C4033',
           paddingTop: '12px'
         }}>
-          <span>Petitions Resolved: {(sortedLeaderboard[heroRankIndex]?.level || hero.level) * 2}</span>
+          <span>Petitions Resolved: {sortedLeaderboard[heroRankIndex]?.totalMissions ?? hero.totalMissions ?? 0}</span>
           <span style={{ color: '#D4AF37', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Award size={16} />
             <span>{hero.xp.toLocaleString()} Total XP</span>

@@ -20,7 +20,11 @@ export const GameProvider = ({ children }) => {
       rank: stored.rank || 'Novice Hero',
       city: stored.city || '',
       area: stored.area || '',
-      email: stored.email || ''
+      email: stored.email || '',
+      totalReports: stored.totalReports || 0,
+      totalMissions: stored.totalMissions || 0,
+      totalVerifications: stored.totalVerifications || 0,
+      achievementCount: stored.achievementCount || 0
     } : {
       id: null,
       name: 'Hero',
@@ -29,7 +33,11 @@ export const GameProvider = ({ children }) => {
       xp: 0,
       rank: 'Novice Hero',
       city: '',
-      area: ''
+      area: '',
+      totalReports: 0,
+      totalMissions: 0,
+      totalVerifications: 0,
+      achievementCount: 0
     };
   });
 
@@ -51,7 +59,11 @@ export const GameProvider = ({ children }) => {
         rank: data.rank,
         city: data.city,
         area: data.area,
-        email: data.email
+        email: data.email,
+        totalReports: data.totalReports || 0,
+        totalMissions: data.totalMissions || 0,
+        totalVerifications: data.totalVerifications || 0,
+        achievementCount: data.achievementCount || 0
       };
       setHero(updated);
       localStorage.setItem('ch_user', JSON.stringify({ ...data }));
