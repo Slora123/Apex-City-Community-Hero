@@ -19,8 +19,16 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const { status, type, lat, lng, radius = 5000 } = req.query;
 
+    let userCity = null;
+    if (req.userId) {
+      const userRes = await db.query('SELECT city FROM users WHERE id = $1', [req.userId]);
+      if (userRes.rows.length > 0) {
+        userCity = userRes.rows[0].city;
+      }
+    }
+
     let query = `
-      SELECT i.*, u.name as reporter_name, u.avatar as reporter_avatar,
+      SELECT i.*, u.name as reporter_name, u.avatar as reporter_avatar, u.city as reporter_city,
              (SELECT COUNT(*) FROM reports r WHERE r.issue_id = i.id) as report_count
       FROM issues i
       LEFT JOIN users u ON i.reporter_id = u.id
@@ -36,6 +44,11 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(type);
       conditions.push(`i.type = $${params.length}`);
     }
+    if (userCity) {
+      params.push(userCity);
+      conditions.push(`(u.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`);
+    }
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }

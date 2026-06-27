@@ -18,6 +18,14 @@ router.get('/', optionalAuth, async (req, res) => {
   try {
     const { status = 'available', lat, lng, radius = 10000 } = req.query;
 
+    let userCity = null;
+    if (req.userId) {
+      const userRes = await db.query('SELECT city FROM users WHERE id = $1', [req.userId]);
+      if (userRes.rows.length > 0) {
+        userCity = userRes.rows[0].city;
+      }
+    }
+
     let query = `
       SELECT m.*,
              i.title as issue_title, i.type as issue_type, i.category, i.severity,
@@ -27,6 +35,7 @@ router.get('/', optionalAuth, async (req, res) => {
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
       LEFT JOIN users u ON m.assignee_id = u.id
+      JOIN users reporter ON i.reporter_id = reporter.id
       WHERE 1=1
     `;
     const params = [];
@@ -34,6 +43,11 @@ router.get('/', optionalAuth, async (req, res) => {
     if (status !== 'all') {
       params.push(status);
       query += ` AND m.status = $${params.length}`;
+    }
+
+    if (userCity) {
+      params.push(userCity);
+      query += ` AND (reporter.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`;
     }
 
     query += ' ORDER BY i.severity DESC, m.created_at DESC';
