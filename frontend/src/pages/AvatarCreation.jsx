@@ -174,10 +174,10 @@ export default function AvatarCreation() {
             onSubmit={handleSubmit}
             style={{
               position: 'absolute',
-              left: '53%',
+              left: '50%',
               transform: 'translateX(-50%)',
               top: '69.5%',
-              width: '62%',
+              width: '54%',
               display: 'flex',
               alignItems: 'center',
               background: '#2b1a11',
