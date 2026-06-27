@@ -160,4 +160,69 @@ router.get('/me', require('../middleware/auth').requireAuth, async (req, res) =>
   }
 });
 
+// ── Authority Dashboard Mock Endpoint ──────────────────────────────────────
+router.post('/authority/unlock', (req, res) => {
+  const { passcode } = req.body;
+  const codeVasai = '1070';
+  const codeVirar = '1072';
+  const codeNalasopara = '1073';
+  
+  const locationData = {
+    Vasai: {
+      reports: [
+        { label: 'Vasai Grant', finance: '99%', resevent: '$254,768' },
+        { label: 'Vasai Aqueduct', finance: '95%', resevent: '$253,250' },
+        { label: 'Vasai Guest', finance: '850', resevent: '$300,509' },
+        { label: 'Vasai Watch', finance: '850', resevent: '$299,786' },
+        { label: 'Vasai Merchant', finance: '850', resevent: '$259,787' },
+        { label: 'Vasai Vault', finance: '850', resevent: '$329,997' }
+      ],
+      scalarHotspot: { r: 4.5, c: 6.5 },
+      senthianTop: [90, 105, 98, 112, 106, 128],
+      senthianBottom: [62, 38, 42, 44, 58, 40],
+      affiliateHotspot: { r: 3.5, c: 10 }
+    },
+    Virar: {
+      reports: [
+        { label: 'Virar Grant', finance: '99%', resevent: '$189,450' },
+        { label: 'Virar Roadway', finance: '95%', resevent: '$210,120' },
+        { label: 'Virar Guest', finance: '850', resevent: '$240,680' },
+        { label: 'Virar Guard', finance: '850', resevent: '$280,340' },
+        { label: 'Virar Market', finance: '850', resevent: '$195,430' },
+        { label: 'Virar Chest', finance: '850', resevent: '$299,500' }
+      ],
+      scalarHotspot: { r: 2.5, c: 3.5 },
+      senthianTop: [110, 85, 95, 80, 115, 90],
+      senthianBottom: [45, 52, 30, 48, 35, 55],
+      affiliateHotspot: { r: 2.5, c: 7 }
+    },
+    Nalasopara: {
+      reports: [
+        { label: 'Nala Grant', finance: '99%', resevent: '$145,200' },
+        { label: 'Nala Lantern', finance: '95%', resevent: '$162,300' },
+        { label: 'Nala Guest', finance: '850', resevent: '$198,400' },
+        { label: 'Nala Patrol', finance: '850', resevent: '$220,150' },
+        { label: 'Nala Gate', finance: '850', resevent: '$180,900' },
+        { label: 'Nala Keep', finance: '850', resevent: '$250,750' }
+      ],
+      scalarHotspot: { r: 5.5, c: 7.5 },
+      senthianTop: [80, 95, 120, 100, 125, 110],
+      senthianBottom: [50, 40, 55, 30, 42, 48],
+      affiliateHotspot: { r: 4.5, c: 13 }
+    }
+  };
+  
+  const cleanInput = passcode ? passcode.toString().trim() : '';
+  
+  if (cleanInput === codeVasai) {
+    return res.json({ success: true, location: 'Vasai', telemetry: locationData.Vasai });
+  } else if (cleanInput === codeVirar) {
+    return res.json({ success: true, location: 'Virar', telemetry: locationData.Virar });
+  } else if (cleanInput === codeNalasopara) {
+    return res.json({ success: true, location: 'Nalasopara', telemetry: locationData.Nalasopara });
+  } else {
+    return res.status(401).json({ success: false, error: 'The gatekeeper frowns. That passcode is unrecognized in our archives.' });
+  }
+});
+
 module.exports = router;
