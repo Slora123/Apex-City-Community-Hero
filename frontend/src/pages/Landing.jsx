@@ -62,6 +62,13 @@ export default function Landing() {
             background-image: url('/landing_mobile.png');
           }
           
+          .start-button {
+            left: 17%;
+            width: 66%;
+            bottom: 31%;
+            height: 9%;
+          }
+          
           @media (min-aspect-ratio: 572/1024) {
             .bg-cover-container {
               width: 100vw;
@@ -75,6 +82,20 @@ export default function Landing() {
               height: 100vh;
             }
           }
+        }
+
+        /* Default start button for desktop landing.png */
+        .start-button {
+          position: absolute;
+          left: 32%;
+          width: 36%;
+          bottom: 12%;
+          height: 14%;
+          background-color: transparent;
+          border: none;
+          cursor: pointer;
+          outline: none;
+          z-index: 10;
         }
       `}</style>
 
@@ -141,18 +162,7 @@ export default function Landing() {
         {/* Hotspot overlay aligned perfectly with the START YOUR JOURNEY sign */}
         <button
           onClick={() => navigate('/login')}
-          style={{
-            position: 'absolute',
-            left: '32%',
-            width: '36%',
-            bottom: '12%',
-            height: '14%',
-            backgroundColor: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            outline: 'none',
-            zIndex: 10
-          }}
+          className="start-button"
           aria-label="Start Your Journey"
         />
       </div>
