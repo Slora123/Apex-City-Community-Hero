@@ -846,8 +846,14 @@ export default function Missions() {
                 </div>
               </div>
             ) : (
-              <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px' }}>
-                {getIllustration(selectedMission.type, selectedMission.status === 'Resolved')}
+              <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px', position: 'relative', background: '#2D1B13' }}>
+                {selectedMission.photoUrl ? (
+                  <img src={selectedMission.photoUrl} alt="Issue" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B5E34' }}>
+                    No Photo
+                  </div>
+                )}
               </div>
             )}
 
@@ -873,23 +879,12 @@ export default function Missions() {
                     <span>AI Confidence</span>
                     <span style={{ color: '#2E6B2A' }}>{Math.round((selectedMission.aiAnalysis.confidence || 0.8) * 100)}%</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
-                    <span>Est. Size / Scope</span>
-                    <span>{selectedMission.aiAnalysis.estimatedSize || 'Medium'}</span>
-                  </div>
                 </>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
-                <span>Original upload image</span>
-                <span style={{ color: '#8B5E34', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Compass size={15} />
-                  <span>View</span>
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
-                <span>Community Comments</span>
-                <span>12</span>
+                <span>Community Reports</span>
+                <span>{selectedMission.reporter_count || 1}</span>
               </div>
 
               <div style={{ marginTop: '8px' }}>
@@ -927,12 +922,19 @@ export default function Missions() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                <span>GPS Status</span>
-                <div className="gps-pill">
-                  {gpsStatus === 'Connected' && <div className="gps-pulse" />}
-                  <span style={{ color: gpsStatus === 'Connected' ? '#2E6B2A' : '#8B5E34' }}>
-                    {gpsStatus}
-                  </span>
+                <span>GPS Location</span>
+                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
+                  <div className="gps-pill" style={{ marginBottom: '4px' }}>
+                    {gpsStatus === 'Connected' && <div className="gps-pulse" />}
+                    <span style={{ color: gpsStatus === 'Connected' ? '#2E6B2A' : '#8B5E34' }}>
+                      {gpsStatus}
+                    </span>
+                  </div>
+                  {selectedMission.lat && selectedMission.lng && (
+                    <span style={{ fontSize: '0.65rem', color: '#8B5E34' }}>
+                      {Number(selectedMission.lat).toFixed(5)}, {Number(selectedMission.lng).toFixed(5)}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -972,33 +974,36 @@ export default function Missions() {
                 </div>
               )
             ) : (
-              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                <button
-                  onClick={() => navigate('/map')}
-                  className="medieval-btn-brown"
-                  style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                >
-                  <Navigation size={15} />
-                  <span>Navigate</span>
-                </button>
-                {selectedMission?.aiAnalysis?.handler === 'Authority' ? (
-                  <div style={{ flex: 1, textAlign: 'center', color: '#D4AF37', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <span>Reported to {selectedMission.aiAnalysis.department}</span>
-                    <span style={{ fontSize: '0.7rem', color: '#B3A387' }}>Awaiting Municipal Action</span>
-                  </div>
-                ) : currentDistance != null && currentDistance > 0.05 ? (
-                  <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
-                  </div>
-                ) : (
+              <div style={{ display: 'flex', gap: '10px', width: '100%', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
                   <button
-                    onClick={handleStartVerification}
-                    className="medieval-btn-green"
+                    onClick={() => navigate('/map')}
+                    className="medieval-btn-brown"
                     style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    <Shield size={15} />
-                    <span>Solve</span>
+                    <Navigation size={15} />
+                    <span>Navigate</span>
                   </button>
+                  {currentDistance != null && currentDistance > 0.05 ? (
+                    <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleStartVerification}
+                      className="medieval-btn-green"
+                      style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Shield size={15} />
+                      <span>{selectedMission?.aiAnalysis?.handler === 'Authority' ? 'Help Anyway' : 'Solve'}</span>
+                    </button>
+                  )}
+                </div>
+                {selectedMission?.aiAnalysis?.handler === 'Authority' && (
+                  <div style={{ textAlign: 'center', color: '#D4AF37', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 0' }}>
+                    <span>Reported to {selectedMission.aiAnalysis.department}</span>
+                    <span style={{ fontSize: '0.7rem', color: '#B3A387' }}>Awaiting Municipal Action, but community can help!</span>
+                  </div>
                 )}
               </div>
             )}

@@ -99,9 +99,11 @@ export const GameProvider = ({ children }) => {
           distance: m.distance,
           beforePhotoUrl: m.beforePhotoUrl,
           afterPhotoUrl: m.afterPhotoUrl,
+          photoUrl: m.photoUrl,
           issueId: m.issue_id,
           backendId: m.id,
-          assigneeId: m.assignee_id
+          assigneeId: m.assignee_id,
+          reporter_count: m.reporter_count
         }));
         setMissions(mapped);
         setIsBackendOnline(true);
