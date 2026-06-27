@@ -99,66 +99,66 @@ export default function Landing() {
         }
       `}</style>
 
-      {/* Full-bleed responsive cover container keeping hotspots perfectly aligned */}
-      <div className="bg-cover-container">
-        {/* Logo in top-left */}
-        <div style={{
+      {/* Logo in top-left, placed relative to viewport */}
+      <div style={{
+        position: 'absolute',
+        top: '4%',
+        left: '4%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        zIndex: 20
+      }}>
+        <img
+          src="/logo.png"
+          alt="Apex City Logo"
+          style={{
+            height: 'min(7vw, 48px)',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))'
+          }}
+        />
+        <span style={{
+          fontFamily: "'MedievalSharp', serif",
+          fontWeight: 'bold',
+          fontSize: 'min(3.2vw, 22px)',
+          color: '#F4E8C1',
+          textShadow: '2px 2px 4px rgba(0,0,0,0.9)',
+          letterSpacing: '1px'
+        }}>APEX CITY</span>
+      </div>
+
+      {/* Authority Dashboard Entry Plaque in top-right, placed relative to viewport */}
+      <button
+        onClick={() => navigate('/authority')}
+        style={{
           position: 'absolute',
           top: '4%',
-          left: '4%',
+          right: '4%',
+          backgroundColor: 'rgba(60, 42, 33, 0.85)',
+          border: '2px solid #8B5E34',
+          borderRadius: '6px',
+          padding: '6px 14px',
+          color: '#F4E8C1',
+          fontFamily: "'MedievalSharp', serif",
+          fontWeight: 'bold',
+          fontSize: 'min(2vw, 15px)',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
+          zIndex: 20,
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          zIndex: 20
-        }}>
-          <img
-            src="/logo.png"
-            alt="Apex City Logo"
-            style={{
-              height: 'min(7vw, 48px)',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))'
-            }}
-          />
-          <span style={{
-            fontFamily: "'MedievalSharp', serif",
-            fontWeight: 'bold',
-            fontSize: 'min(3.2vw, 22px)',
-            color: '#F4E8C1',
-            textShadow: '2px 2px 4px rgba(0,0,0,0.9)',
-            letterSpacing: '1px'
-          }}>APEX CITY</span>
-        </div>
+          gap: '6px',
+          transition: 'all 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(92, 64, 51, 0.95)'}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(60, 42, 33, 0.85)'}
+      >
+        <span>Authority</span>
+      </button>
 
-        {/* Authority Dashboard Entry Plaque in top-right */}
-        <button
-          onClick={() => navigate('/authority')}
-          style={{
-            position: 'absolute',
-            top: '4%',
-            right: '4%',
-            backgroundColor: 'rgba(60, 42, 33, 0.85)',
-            border: '2px solid #8B5E34',
-            borderRadius: '6px',
-            padding: '6px 14px',
-            color: '#F4E8C1',
-            fontFamily: "'MedievalSharp', serif",
-            fontWeight: 'bold',
-            fontSize: 'min(2vw, 15px)',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
-            zIndex: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(92, 64, 51, 0.95)'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(60, 42, 33, 0.85)'}
-        >
-          <span>Authority</span>
-        </button>
-
+      {/* Full-bleed responsive cover container keeping hotspots perfectly aligned */}
+      <div className="bg-cover-container">
         {/* Hotspot overlay aligned perfectly with the START YOUR JOURNEY sign */}
         <button
           onClick={() => navigate('/login')}
