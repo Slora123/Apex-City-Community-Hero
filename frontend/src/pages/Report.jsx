@@ -282,7 +282,7 @@ export default function Report() {
         .scroll-wrapper {
           width: 100%;
           max-width: 500px;
-          aspect-ratio: 0.90; /* Adjusted aspect ratio to match report.png */
+          aspect-ratio: 0.65; /* Made taller to fit the map */
           position: relative;
           background-image: url('/report.png'); /* Using high-res AI cutout */
           background-size: 100% 100%;
