@@ -63,10 +63,11 @@ export default function Landing() {
           }
           
           .start-button {
-            left: 17%;
-            width: 66%;
-            bottom: 31%;
-            height: 9%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            bottom: 27%;
+            height: 15%;
           }
           
           @media (min-aspect-ratio: 572/1024) {
