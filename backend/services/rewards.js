@@ -87,12 +87,15 @@ function calculateSolveReward(issueType, severity, verdict) {
   const tier = getSizeTier(severity);
   const baseReward = rewardTable[tier] || rewardTable.medium;
 
+  // Normalize verdict for AI comparisons
+  const v = (verdict || '').toLowerCase();
+
   // Partial resolution gets 50% of the reward
-  if (verdict === 'Partially Resolved') {
+  if (v === 'partially resolved' || v === 'partially_resolved') {
     return Math.round(baseReward * 0.5);
   }
   // Full resolution gets 100%
-  if (verdict === 'Fully Resolved') {
+  if (v === 'fully resolved' || v === 'resolved') {
     return baseReward;
   }
   // Not resolved — 0 points for solving

@@ -1184,12 +1184,17 @@
             if (issue.status !== 'active') return;
 
             let modelType = 'garbage';
-            const cat = (issue.category || '').toLowerCase();
+            const aiCategory = issue.aiAnalysis?.category;
+            const cat = aiCategory || (issue.category || '').toLowerCase();
             const typ = (issue.type || '').toLowerCase();
-            if (cat.includes('pothole') || typ.includes('pothole')) modelType = 'brokenRoad';
-            else if (cat.includes('water') || typ.includes('water') || typ.includes('leak')) modelType = 'waterLeak';
-            else if (cat.includes('garbage') || typ.includes('garbage') || cat.includes('trash')) modelType = 'garbage';
+            
+            if (cat.includes('pothole') || typ.includes('pothole') || cat.includes('cracked_road')) modelType = 'brokenRoad';
+            else if (cat.includes('water') || typ.includes('water') || cat.includes('leak') || cat.includes('flooded_road')) modelType = 'waterLeak';
+            else if (cat.includes('garbage') || typ.includes('garbage') || cat.includes('trash') || cat.includes('waste')) modelType = 'garbage';
             else if (cat.includes('light') || typ.includes('light')) modelType = 'brokenLight';
+            else if (cat.includes('infrastructure') || cat.includes('broken_bench') || cat.includes('broken_bus_stop')) modelType = 'brokenRoad'; // fallback
+            else if (cat.includes('open_manhole') || cat.includes('blocked_drain')) modelType = 'waterLeak'; // fallback
+            else if (cat.includes('fallen_tree') || cat.includes('road_blockage') || cat.includes('traffic_signal')) modelType = 'brokenRoad'; // fallback
 
             // deterministic pseudo-random placement based on issue ID so it stays in same place
             let seed = 0;

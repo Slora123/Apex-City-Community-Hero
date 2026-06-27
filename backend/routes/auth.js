@@ -179,12 +179,12 @@ router.post('/authority/unlock', (req, res) => {
   const locationData = {
     Vasai: {
       reports: [
-        { label: 'Vasai Grant', finance: '99%', resevent: '$254,768' },
-        { label: 'Vasai Aqueduct', finance: '95%', resevent: '$253,250' },
-        { label: 'Vasai Guest', finance: '850', resevent: '$300,509' },
-        { label: 'Vasai Watch', finance: '850', resevent: '$299,786' },
-        { label: 'Vasai Merchant', finance: '850', resevent: '$259,787' },
-        { label: 'Vasai Vault', finance: '850', resevent: '$329,997' }
+        { title: 'Grant St Potholes', severity: 'Critical', confidence: 99, authority: 'Department of Transportation' },
+        { title: 'Aqueduct Pipeline Burst', severity: 'High', confidence: 95, authority: 'Water & Sanitation Dept' },
+        { title: 'Market Square Lighting', severity: 'Medium', confidence: 85, authority: 'Public Works' },
+        { title: 'Watchtower Debris', severity: 'Medium', confidence: 88, authority: 'Waste Management' },
+        { title: 'Merchant Road Sinkhole', severity: 'High', confidence: 92, authority: 'Department of Transportation' },
+        { title: 'Vault Gate Malfunction', severity: 'Medium', confidence: 82, authority: 'Public Works' }
       ],
       scalarHotspot: { r: 4.5, c: 6.5 },
       senthianTop: [90, 105, 98, 112, 106, 128],
@@ -193,12 +193,12 @@ router.post('/authority/unlock', (req, res) => {
     },
     Virar: {
       reports: [
-        { label: 'Virar Grant', finance: '99%', resevent: '$189,450' },
-        { label: 'Virar Roadway', finance: '95%', resevent: '$210,120' },
-        { label: 'Virar Guest', finance: '850', resevent: '$240,680' },
-        { label: 'Virar Guard', finance: '850', resevent: '$280,340' },
-        { label: 'Virar Market', finance: '850', resevent: '$195,430' },
-        { label: 'Virar Chest', finance: '850', resevent: '$299,500' }
+        { title: 'Grant Highway Crack', severity: 'High', confidence: 94, authority: 'Department of Transportation' },
+        { title: 'Roadway Drain Block', severity: 'Medium', confidence: 86, authority: 'Water & Sanitation Dept' },
+        { title: 'Guest House Overflow', severity: 'High', confidence: 91, authority: 'Waste Management' },
+        { title: 'Guard Post Power Loss', severity: 'Critical', confidence: 98, authority: 'Public Works' },
+        { title: 'Market Waste Pile', severity: 'Medium', confidence: 89, authority: 'Waste Management' },
+        { title: 'Chest Alley Flooding', severity: 'High', confidence: 93, authority: 'Water & Sanitation Dept' }
       ],
       scalarHotspot: { r: 2.5, c: 3.5 },
       senthianTop: [110, 85, 95, 80, 115, 90],
@@ -207,12 +207,12 @@ router.post('/authority/unlock', (req, res) => {
     },
     Nalasopara: {
       reports: [
-        { label: 'Nala Grant', finance: '99%', resevent: '$145,200' },
-        { label: 'Nala Lantern', finance: '95%', resevent: '$162,300' },
-        { label: 'Nala Guest', finance: '850', resevent: '$198,400' },
-        { label: 'Nala Patrol', finance: '850', resevent: '$220,150' },
-        { label: 'Nala Gate', finance: '850', resevent: '$180,900' },
-        { label: 'Nala Keep', finance: '850', resevent: '$250,750' }
+        { title: 'Grant Avenue Blockage', severity: 'Critical', confidence: 97, authority: 'Department of Transportation' },
+        { title: 'Lantern Row Outage', severity: 'Medium', confidence: 84, authority: 'Public Works' },
+        { title: 'Guest Lane Pothole', severity: 'High', confidence: 90, authority: 'Department of Transportation' },
+        { title: 'Patrol Route Sinkhole', severity: 'High', confidence: 92, authority: 'Department of Transportation' },
+        { title: 'Gate Perimeter Breach', severity: 'Medium', confidence: 81, authority: 'Public Works' },
+        { title: 'Keep Wall Structural', severity: 'Critical', confidence: 96, authority: 'Public Infrastructure' }
       ],
       scalarHotspot: { r: 5.5, c: 7.5 },
       senthianTop: [80, 95, 120, 100, 125, 110],

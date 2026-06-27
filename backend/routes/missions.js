@@ -30,7 +30,7 @@ router.get('/', optionalAuth, async (req, res) => {
       SELECT m.*,
              i.title as issue_title, i.type as issue_type, i.category, i.severity,
              i.lat as issue_lat, i.lng as issue_lng, i.address, i.description,
-             i.photo_path, i.reporter_count, i.status as issue_status,
+             i.photo_path, i.reporter_count, i.status as issue_status, i.ai_analysis,
              u.name as assignee_name
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
@@ -71,6 +71,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     const enriched = missions.map(m => ({
       ...m,
+      aiAnalysis: m.ai_analysis ? JSON.parse(m.ai_analysis) : {},
       photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
       beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
       afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null

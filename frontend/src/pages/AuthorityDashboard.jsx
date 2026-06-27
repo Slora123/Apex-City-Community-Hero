@@ -580,17 +580,19 @@ export default function AuthorityDashboard() {
                 <table className="reports-table">
                   <thead>
                     <tr>
-                      <th>Event Barant</th>
-                      <th>Finance</th>
-                      <th>Resevent</th>
+                      <th>Issue / Anomaly</th>
+                      <th>Severity</th>
+                      <th>AI Confidence</th>
+                      <th>Target Authority</th>
                     </tr>
                   </thead>
                   <tbody>
                     {activeData.reports.map((row, idx) => (
                       <tr key={idx}>
-                        <td>{row.label}</td>
-                        <td className={row.finance.includes('%') ? 'table-highlight' : ''}>{row.finance}</td>
-                        <td>{row.resevent}</td>
+                        <td>{row.title}</td>
+                        <td className={row.severity === 'Critical' ? 'table-highlight' : ''}>{row.severity}</td>
+                        <td style={{ color: '#2E6B2A', fontWeight: 'bold' }}>{row.confidence}%</td>
+                        <td>{row.authority}</td>
                       </tr>
                     ))}
                   </tbody>

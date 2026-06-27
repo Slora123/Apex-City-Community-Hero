@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import BottomNav from '../components/BottomNav';
+import * as api from '../api';
 import {
   X,
   Camera,
@@ -266,29 +267,75 @@ export default function Missions() {
     await startCamera();
   };
 
-  const handleCapturePhoto = () => {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const createDummyBlob = async () => {
+    // Return a tiny 1x1 transparent png blob
+    const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const res = await fetch(`data:image/png;base64,${b64}`);
+    return res.blob();
+  };
+
+  const handleCapturePhoto = async () => {
     // Shutter flash animation
     setShutterFlash(true);
     setTimeout(() => setShutterFlash(false), 1200);
 
     if (view === 'capture_before') {
-      setBeforePhoto(true);
-      setTimeout(() => {
-        stopCamera();
-        setView('capture_after');
-        startCamera();
-      }, 1000);
+      setIsUploading(true);
+      try {
+        const dummyBlob = await createDummyBlob();
+        await api.uploadBeforePhoto(selectedMission.id, dummyBlob);
+        setBeforePhoto(true);
+        setTimeout(() => {
+          stopCamera();
+          setView('capture_after');
+          startCamera();
+        }, 1000);
+      } catch (e) {
+        console.error("Before photo upload failed", e);
+      }
+      setIsUploading(false);
     } else if (view === 'capture_after') {
-      setAfterPhoto(true);
-      setTimeout(() => {
-        stopCamera();
-        // Shift to the verification slide instead of going straight to success!
-        setView('verification');
-      }, 1000);
+      setIsUploading(true);
+      try {
+        const dummyBlob = await createDummyBlob();
+        const result = await api.uploadAfterPhoto(selectedMission.id, dummyBlob);
+        
+        setAfterPhoto(true);
+        // The backend `uploadAfterPhoto` returns { mission, comparison, pointsAwarded }
+        // Let's go directly to success view and show the AI's result.
+        setTimeout(() => {
+          stopCamera();
+          
+          if (result && result.comparison) {
+             const status = result.comparison.verdict === 'resolved' 
+               ? 'Fully Resolved' 
+               : (result.comparison.verdict === 'partially_resolved' ? 'Partially Resolved' : 'Not Resolved');
+             setResolutionStatus(status);
+             setEarnedXp(result.pointsAwarded || 0);
+             if (status === 'Not Resolved') {
+               setView('details');
+               setBeforePhoto(null);
+               setAfterPhoto(null);
+             } else {
+               setView('success');
+             }
+          } else {
+            // Fallback if comparison is missing
+            setResolutionStatus('Fully Resolved');
+            setEarnedXp(100);
+            setView('success');
+          }
+        }, 1000);
+      } catch (e) {
+        console.error("After photo upload failed", e);
+        setIsUploading(false);
+      }
     }
   };
 
-  // Resolution selection on the Verification Slide
+  // Resolution selection on the Verification Slide (Legacy / manual fallback)
   const handleSelectResolution = (status) => {
     const baseBounty = 0;
     
@@ -630,14 +677,18 @@ export default function Missions() {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.title}
+                    {m.aiAnalysis?.missionTitle || m.title}
                   </h4>
-                  <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px' }}>
-                    Distance: 2.50mi, Severity: {m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Med'}
+                  <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span>Distance: {(m.distance || 2.5).toFixed(2)}mi</span>
+                    <span>Severity: {m.aiAnalysis?.severity || (m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Medium')}</span>
+                    {m.aiAnalysis?.recommendedAuthority && (
+                      <span style={{ fontSize: '0.75rem', color: '#8B5E34' }}>Authority: {m.aiAnalysis.recommendedAuthority}</span>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 800, marginTop: '6px' }}>
                     <Award size={14} />
-                    <span>Reward: 0 XP</span>
+                    <span>Reward: {m.aiAnalysis?.estimatedReward || 0} XP</span>
                   </div>
                 </div>
 
@@ -711,23 +762,31 @@ export default function Missions() {
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                 <span>Problem Solving Reward</span>
                 <span style={{ color: '#2E6B2A', fontWeight: 'bold' }}>
-                  +{(() => {
-                    const typeKey = selectedMission.type || 'other';
-                    const s = (severity || 'Medium').toLowerCase();
-                    const tier = (s === 'critical' || s === 'high') ? 'major' : (s === 'medium' || s === 'moderate') ? 'medium' : 'small';
-                    const rewards = {
-                      waste: { small: 50, medium: 75, major: 100 },
-                      cracked_road: { small: 100, medium: 150, major: 200 },
-                      water_leak: { small: 75, medium: 100, major: 150 },
-                      broken_light: { small: 50, medium: 75, major: 100 },
-                      infrastructure: { small: 100, medium: 175, major: 250 },
-                      other: { small: 25, medium: 50, major: 75 }
-                    };
-                    const table = rewards[typeKey] || rewards.other;
-                    return table[tier] || table.medium;
-                  })()} XP
+                  +{selectedMission.aiAnalysis?.estimatedReward || 0} XP
                 </span>
               </div>
+              
+              {selectedMission.aiAnalysis && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                    <span>Estimated Impact</span>
+                    <span>{selectedMission.aiAnalysis.impact || 'Unknown'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                    <span>Recommended Authority</span>
+                    <span>{selectedMission.aiAnalysis.recommendedAuthority || 'Local Council'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                    <span>AI Confidence</span>
+                    <span style={{ color: '#2E6B2A' }}>{Math.round((selectedMission.aiAnalysis.confidence || 0.8) * 100)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                    <span>Est. Size / Scope</span>
+                    <span>{selectedMission.aiAnalysis.estimatedSize || 'Medium'}</span>
+                  </div>
+                </>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                 <span>Original upload image</span>
                 <span style={{ color: '#8B5E34', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -949,26 +1008,38 @@ export default function Missions() {
             gap: '12px'
           }}>
             <span style={{ fontSize: '0.85rem', color: '#B3A387', letterSpacing: '0.5px' }}>
-              {view === 'capture_before' ? 'Capture the damaged anomaly' : 'Capture the resolved issue'}
+              {isUploading ? 'Uploading to Guild Archives...' : (view === 'capture_before' ? 'Capture the damaged anomaly' : 'Capture the resolved issue')}
             </span>
 
             <button
               onClick={handleCapturePhoto}
+              disabled={isUploading}
               style={{
                 width: '72px',
                 height: '72px',
                 borderRadius: '50%',
-                background: '#FFF',
+                background: isUploading ? '#666' : '#FFF',
                 border: '6px solid #4A4E69',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
-                cursor: 'pointer',
+                cursor: isUploading ? 'not-allowed' : 'pointer',
                 outline: 'none',
-                transition: 'transform 0.1s'
+                transition: 'transform 0.1s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
               className="shutter-btn"
-              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.92)'}
-              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            />
+              onMouseDown={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(0.92)')}
+              onMouseUp={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              {isUploading && <RefreshCw className="spin" size={24} color="#FFF" />}
+            </button>
+            <style>
+              {`
+                .spin { animation: spin 1s linear infinite; }
+                @keyframes spin { 100% { transform: rotate(360deg); } }
+              `}
+            </style>
           </div>
         </div>
       )}

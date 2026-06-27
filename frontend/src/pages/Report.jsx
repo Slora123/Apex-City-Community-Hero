@@ -227,7 +227,9 @@ export default function Report() {
       setEarnedPoints(points);
       setSubmitDetails({
         severity: result?.issue?.severity || reported.severity,
-        reportOrder: result?.reportOrder || 1
+        reportOrder: result?.reportOrder || 1,
+        aiAnalysis: result?.issue?.aiAnalysis,
+        category: result?.issue?.category || reported.category
       });
       
       setIsSubmitting(false);
@@ -620,11 +622,57 @@ export default function Report() {
 
             <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
               The Guild has received your scroll. Artisans have been dispatched to investigate and repair the anomaly at the coordinates.
-              <br/><br/>
-              <strong>Issue Type:</strong> {submitDetails?.category || 'Civic Anomaly'}<br/>
-              <strong>Issue Severity:</strong> {submitDetails?.severity ? submitDetails.severity.charAt(0).toUpperCase() + submitDetails.severity.slice(1) : 'Medium'}<br/>
-              <strong>Reporter Status:</strong> {submitDetails?.reportOrder === 1 ? '1st (First Reporter!)' : submitDetails?.reportOrder + (submitDetails?.reportOrder===2?'nd':submitDetails?.reportOrder===3?'rd':'th') + ' Reporter'}
             </p>
+
+            {/* AI Analysis Panel */}
+            {submitDetails?.aiAnalysis && (
+              <div style={{
+                width: '100%',
+                background: '#4A3B32',
+                borderRadius: '8px',
+                padding: '12px',
+                color: '#F5E6C4',
+                textAlign: 'left',
+                boxSizing: 'border-box',
+                border: '1px solid #2D1B13'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#D4AF37', fontWeight: 900 }}>AI Oracle Analysis</span>
+                  <div style={{
+                    background: '#2E6B2A',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700
+                  }}>
+                    {Math.round((submitDetails.aiAnalysis.confidence || 0.8) * 100)}% Confidence
+                  </div>
+                </div>
+                <div style={{ fontSize: '0.9rem', marginBottom: '8px', lineHeight: '1.4' }}>
+                  <strong>{submitDetails.aiAnalysis.summary || 'Anomaly detected.'}</strong>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem' }}>
+                  <div><strong>Severity:</strong> {submitDetails.aiAnalysis.severity}</div>
+                  <div><strong>Priority:</strong> {submitDetails.aiAnalysis.priority}</div>
+                  <div><strong>Authority:</strong> {submitDetails.aiAnalysis.recommendedAuthority}</div>
+                  <div><strong>Safety:</strong> {submitDetails.aiAnalysis.safetyLevel || 'Caution'}</div>
+                </div>
+                {submitDetails.aiAnalysis.citizenAdvice && (
+                  <div style={{ marginTop: '8px', fontSize: '0.8rem', fontStyle: 'italic', color: '#C4A484' }}>
+                    "{submitDetails.aiAnalysis.citizenAdvice}"
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!submitDetails?.aiAnalysis && (
+              <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
+                <br/><br/>
+                <strong>Issue Type:</strong> {submitDetails?.category || 'Civic Anomaly'}<br/>
+                <strong>Issue Severity:</strong> {submitDetails?.severity ? submitDetails.severity.charAt(0).toUpperCase() + submitDetails.severity.slice(1) : 'Medium'}<br/>
+                <strong>Reporter Status:</strong> {submitDetails?.reportOrder === 1 ? '1st (First Reporter!)' : submitDetails?.reportOrder + (submitDetails?.reportOrder===2?'nd':submitDetails?.reportOrder===3?'rd':'th') + ' Reporter'}
+              </p>
+            )}
 
             <div style={{
               background: 'rgba(46, 26, 10, 0.08)',

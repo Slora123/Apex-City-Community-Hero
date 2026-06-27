@@ -98,7 +98,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
       LEFT JOIN users u ON i.reporter_id = u.id
       WHERE i.id = $1
     `, [req.params.id]);
-
+    
     const issue = issueRes.rows[0];
 
     if (!issue) {
@@ -196,7 +196,7 @@ router.post('/', requireAuth, (req, res) => {
       if (existingIssue) {
         // Add as co-reporter to existing issue
         issueId = existingIssue.id;
-
+        
         // Prevent the exact same user from reporting the same issue twice
         const dupCheck = await db.query('SELECT 1 FROM reports WHERE issue_id = $1 AND reporter_id = $2', [issueId, req.userId]);
         if (dupCheck.rows.length > 0) {

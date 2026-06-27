@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { calculateSolveReward } = require('./rewards');
 
 /**
  * Gemini AI Analysis Service
@@ -98,6 +99,28 @@ const PRIORITY_LABELS = {
   Critical: 'Critical'
 };
 
+
+function getRecommendedAuthority(category) {
+  const mapping = {
+    cracked_road: 'Road Maintenance Department',
+    damaged_footpath: 'Road Maintenance Department',
+    road_blockage: 'Traffic Police & Road Maintenance',
+    water_leak: 'Water Supply Department',
+    blocked_drain: 'Sewerage Department',
+    open_manhole: 'Sewerage Department',
+    flooded_road: 'Disaster Management & Sewerage',
+    broken_light: 'Electricity Board',
+    traffic_signal: 'Traffic Police Department',
+    waste: 'Waste Management Department',
+    illegal_waste_dumping: 'Waste Management Department',
+    fallen_tree: 'Forest/Parks Department',
+    infrastructure: 'Public Works Department',
+    broken_bus_stop: 'Public Transport Department',
+    broken_bench: 'Parks & Recreation Department'
+  };
+  return mapping[category] || 'Municipal Corporation';
+}
+
 function calculatePriority(severity, reports, impact) {
   if (severity === 'Critical') return 'Critical';
   if (severity === 'High') {
@@ -142,7 +165,8 @@ function mockAnalysis(imagePath, estimatedReports = null) {
   const reportCount = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
   const priority = calculatePriority(severity, reportCount, impact);
   
-  const estimatedReward = severity === 'Critical' ? 250 : severity === 'High' ? 150 : severity === 'Medium' ? 100 : 50;
+  const estimatedReward = calculateSolveReward(detected ? detected.category : 'other', severity, 'Fully Resolved');
+  const recommendedAuthority = getRecommendedAuthority(detected ? detected.category : 'other');
 
   return {
     type: detected ? detected.type : null,
@@ -155,9 +179,17 @@ function mockAnalysis(imagePath, estimatedReports = null) {
     estimatedReports: reportCount,
     confidence: Math.min(Number((0.87 + Math.random() * 0.12).toFixed(2)), 0.99),
     aiProvider: 'mock',
+    model: 'mock',
     analysedAt: new Date().toISOString(),
     estimatedReward,
-    recommendedAuthority: 'Municipal Corporation',
+    recommendedAuthority,
+    model: 'mock',
+    missionTitle: `Repair ${detected.type}`,
+    missionDescription: `A ${severity.toLowerCase()} severity ${detected.type.toLowerCase()} was reported affecting ${impact.toLowerCase()}.`,
+    estimatedTime: severity === 'Critical' ? '2-4 hours' : '1-2 days',
+    citizenAdvice: severity === 'Critical' ? 'Stay clear of the area.' : 'Be cautious.',
+    safetyLevel: severity === 'Critical' ? 'Danger' : 'Safe to approach with caution',
+    requiresAuthority: severity === 'Critical' || severity === 'High',
     summary: `${severity} severity ${detected.type.toLowerCase()} affecting ${impact.toLowerCase()}.`
   };
 }
@@ -252,13 +284,22 @@ Be accurate and helpful. Return ONLY valid JSON, without any markdown code block
       parsed.confidence = Math.min(Number(parsed.confidence.toFixed(2)), 0.99);
     }
     
-    // Handle reports
-    parsed.estimatedReports = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
+    // Validate categorical fields
+    const validCategories = ['cracked_road', 'water_leak', 'broken_light', 'waste', 'infrastructure', 'traffic_signal', 'open_manhole', 'fallen_tree', 'blocked_drain', 'flooded_road', 'damaged_footpath', 'illegal_waste_dumping', 'broken_bus_stop', 'broken_bench', 'road_blockage', 'other'];
+    if (!validCategories.includes(parsed.category)) parsed.category = 'other';
     
-    // Fallback recalculate priority if it's missing or to enforce rule
-    if (!parsed.priority) {
-       parsed.priority = calculatePriority(parsed.severity || 'Medium', parsed.estimatedReports, parsed.impact || '');
+    if (!SEVERITY_LEVELS.includes(parsed.severity)) parsed.severity = 'Medium';
+    
+    const validPriorities = ['Low Priority', 'Moderate', 'Urgent', 'Critical'];
+    if (!validPriorities.includes(parsed.priority)) {
+      parsed.priority = calculatePriority(parsed.severity, parsed.estimatedReports || 1, parsed.impact || '');
     }
+    
+    // Handle dynamic fields
+    parsed.estimatedReports = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
+    parsed.recommendedAuthority = getRecommendedAuthority(parsed.category);
+    parsed.estimatedReward = calculateSolveReward(parsed.category, parsed.severity, 'Fully Resolved');
+    parsed.model = 'gemini-1.5-flash';
 
     return parsed;
   } catch (err) {
@@ -338,8 +379,8 @@ Evaluate specifically:
 - Has the damaged streetlight been repaired?
 - Has infrastructure damage been repaired?
 
-IGNORE camera angle, lighting, shadows, weather, and image quality differences.
-Focus only on whether the civic issue has been resolved.
+IGNORE camera angle, lighting, shadows, weather, zoom levels, people, vehicles, and image quality differences.
+Focus strictly on whether the civic issue itself has been resolved.
 
 Return ONLY this JSON:
 {
@@ -376,30 +417,36 @@ Do not include markdown tags like \`\`\`json, just return raw JSON.`;
   }
 }
 
-function mockComparison(issueType) {
-  const resolutionPct = Math.floor(Math.random() * 101); // 0-100%
-  
-  let verdict;
-  if (resolutionPct < 40) {
-    verdict = 'Not Resolved';
-  } else if (resolutionPct < 80) {
-    verdict = 'Partially Resolved';
-  } else {
-    verdict = 'Fully Resolved';
+function mockComparison(issueType, category, severity) {
+  let mockVerdict = 'partially_resolved';
+  if (Math.random() > 0.3) {
+    mockVerdict = 'resolved';
+  } else if (Math.random() < 0.1) {
+    mockVerdict = 'not_resolved';
   }
-  
-  const estimatedReward = verdict === 'Fully Resolved' ? 200 : verdict === 'Partially Resolved' ? 100 : 0;
-  
-  return {
-    resolutionPercentage: resolutionPct,
-    verdict,
-    improvement: `The ${issueType || 'reported issue'} shows ${resolutionPct}% improvement after the intervention.`,
-    remainingIssues: verdict === 'Fully Resolved' ? 'None' : 'Additional work is required to fully resolve the issue.',
+
+  let mockPercentage = 50;
+  if (mockVerdict === 'resolved') {
+    mockPercentage = 80 + Math.floor(Math.random() * 20);
+  } else if (mockVerdict === 'not_resolved') {
+    mockPercentage = Math.floor(Math.random() * 20);
+  } else {
+    mockPercentage = 30 + Math.floor(Math.random() * 40);
+  }
+
+  const baseReward = calculateSolveReward(category, severity, mockVerdict);
+
+  const mockResponse = {
+    resolutionPercentage: mockPercentage,
+    verdict: mockVerdict,
+    improvement: `The ${issueType || 'reported issue'} shows ${mockPercentage}% improvement after the intervention.`,
+    remainingIssues: mockVerdict === 'resolved' ? 'None' : 'Additional work is required to fully resolve the issue.',
     confidence: Math.min(Number((0.82 + Math.random() * 0.15).toFixed(2)), 0.99),
     aiProvider: 'mock',
-    estimatedReward,
-    summary: `${verdict} (${resolutionPct}%). ${verdict === 'Fully Resolved' ? 'Great job resolving the issue.' : 'Issue is still pending complete resolution.'}`
+    estimatedReward: baseReward,
+    summary: `${mockVerdict.replace('_', ' ')} (${mockPercentage}%). ${mockVerdict === 'resolved' ? 'Great job resolving the issue.' : 'Issue is still pending complete resolution.'}`
   };
+  return mockResponse;
 }
 
 module.exports = { analyseImage, compareBeforeAfter };
