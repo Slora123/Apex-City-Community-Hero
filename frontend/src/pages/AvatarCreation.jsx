@@ -66,7 +66,7 @@ export default function AvatarCreation() {
   const getColumnStyle = (left) => ({
     position: 'absolute',
     left,
-    top: '38.5%',
+    top: '34%',
     width: '21%',
     height: '26%',
     display: 'flex',
@@ -176,7 +176,7 @@ export default function AvatarCreation() {
               position: 'absolute',
               left: '50%',
               transform: 'translateX(-50%)',
-              top: '69.5%',
+              top: '63.5%',
               width: '54%',
               display: 'flex',
               alignItems: 'center',
