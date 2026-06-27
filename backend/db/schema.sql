@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   total_reports INTEGER DEFAULT 0,
   total_missions INTEGER DEFAULT 0,
   total_verifications INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Issues table
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS issues (
   description TEXT DEFAULT '',
   ai_analysis TEXT DEFAULT '{}',
   resolution_photo TEXT DEFAULT '',
-  resolved_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  resolved_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reporter_id) REFERENCES users(id)
 );
 
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS reports (
   reporter_id TEXT NOT NULL,
   report_order INTEGER DEFAULT 1,
   points_awarded INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (issue_id) REFERENCES issues(id),
   FOREIGN KEY (reporter_id) REFERENCES users(id),
   UNIQUE(issue_id, reporter_id)
@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS missions (
   status TEXT DEFAULT 'available',
   before_photo TEXT DEFAULT '',
   after_photo TEXT DEFAULT '',
-  accepted_at DATETIME,
-  completed_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  accepted_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (issue_id) REFERENCES issues(id),
   FOREIGN KEY (assignee_id) REFERENCES users(id)
 );
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS verifications (
   verifier_id TEXT NOT NULL,
   verdict TEXT DEFAULT 'resolved',
   points_awarded INTEGER DEFAULT 5,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (issue_id) REFERENCES issues(id),
   FOREIGN KEY (verifier_id) REFERENCES users(id)
 );
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS achievements (
   badge_type TEXT NOT NULL,
   badge_name TEXT NOT NULL,
   badge_description TEXT DEFAULT '',
-  earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   UNIQUE(user_id, badge_type)
 );
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS xp_transactions (
   amount INTEGER NOT NULL,
   reason TEXT DEFAULT '',
   ref_id TEXT DEFAULT '',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 

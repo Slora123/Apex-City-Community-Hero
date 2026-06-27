@@ -15,7 +15,7 @@ const { optionalAuth } = require('../middleware/auth');
  *   limit: max results (default 50)
  *   userId: highlight a specific user's position
  */
-router.get('/', optionalAuth, (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { scope = 'national', area, city, limit = 50 } = req.query;
     const maxLimit = Math.min(parseInt(limit) || 50, 200);
@@ -29,31 +29,34 @@ router.get('/', optionalAuth, (req, res) => {
     const params = [];
 
     if (scope === 'area' && area) {
-      query += ' AND area = ?';
       params.push(area);
+      query += ` AND area = $${params.length}`;
     } else if (scope === 'city' && city) {
-      query += ' AND city = ?';
       params.push(city);
+      query += ` AND city = $${params.length}`;
     } else if (scope === 'area' && req.userId) {
       // Use the logged-in user's area
-      const user = db.prepare('SELECT area FROM users WHERE id = ?').get(req.userId);
+      const userRes = await db.query('SELECT area FROM users WHERE id = $1', [req.userId]);
+      const user = userRes.rows[0];
       if (user && user.area) {
-        query += ' AND area = ?';
         params.push(user.area);
+        query += ` AND area = $${params.length}`;
       }
     } else if (scope === 'city' && req.userId) {
       // Use the logged-in user's city
-      const user = db.prepare('SELECT city FROM users WHERE id = ?').get(req.userId);
+      const userRes = await db.query('SELECT city FROM users WHERE id = $1', [req.userId]);
+      const user = userRes.rows[0];
       if (user && user.city) {
-        query += ' AND city = ?';
         params.push(user.city);
+        query += ` AND city = $${params.length}`;
       }
     }
 
-    query += ' ORDER BY xp DESC, total_missions DESC LIMIT ?';
     params.push(maxLimit);
+    query += ` ORDER BY xp DESC, total_missions DESC LIMIT $${params.length}`;
 
-    const users = db.prepare(query).all(...params);
+    const usersRes = await db.query(query, params);
+    const users = usersRes.rows;
 
     // Add rank position
     const ranked = users.map((user, index) => ({
@@ -78,22 +81,24 @@ router.get('/', optionalAuth, (req, res) => {
       const inList = ranked.find(u => u.id === req.userId);
       if (!inList) {
         // Count how many users have more XP
-        const currentUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+        const currentUserRes = await db.query('SELECT * FROM users WHERE id = $1', [req.userId]);
+        const currentUser = currentUserRes.rows[0];
         if (currentUser) {
-          let countQuery = 'SELECT COUNT(*) + 1 as position FROM users WHERE xp > ? AND 1=1';
+          let countQuery = 'SELECT COUNT(*) + 1 as position FROM users WHERE xp > $1 AND 1=1';
           const countParams = [currentUser.xp];
 
           if (scope === 'area' && currentUser.area) {
-            countQuery += ' AND area = ?';
             countParams.push(currentUser.area);
+            countQuery += ` AND area = $${countParams.length}`;
           } else if (scope === 'city' && currentUser.city) {
-            countQuery += ' AND city = ?';
             countParams.push(currentUser.city);
+            countQuery += ` AND city = $${countParams.length}`;
           }
 
-          const posResult = db.prepare(countQuery).get(...countParams);
+          const posResultRes = await db.query(countQuery, countParams);
+          const posResult = posResultRes.rows[0];
           currentUserPosition = {
-            position: posResult ? posResult.position : null,
+            position: posResult ? parseInt(posResult.position, 10) : null,
             ...currentUser,
             isCurrentUser: true
           };

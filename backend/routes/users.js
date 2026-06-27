@@ -9,48 +9,54 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
  * GET /api/users/:id
  * Get a user's public profile and stats
  */
-router.get('/:id', optionalAuth, (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    const userRes = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+    const user = userRes.rows[0];
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Recent activity
-    const recentReports = db.prepare(`
+    const recentReportsRes = await db.query(`
       SELECT i.id, i.title, i.type, i.category, i.severity, i.status, r.points_awarded, r.created_at
       FROM reports r
       JOIN issues i ON r.issue_id = i.id
-      WHERE r.reporter_id = ?
+      WHERE r.reporter_id = $1
       ORDER BY r.created_at DESC
       LIMIT 5
-    `).all(req.params.id);
+    `, [req.params.id]);
+    const recentReports = recentReportsRes.rows;
 
-    const recentMissions = db.prepare(`
+    const recentMissionsRes = await db.query(`
       SELECT m.id, m.status, m.completed_at, i.title, i.type, i.severity
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
-      WHERE m.assignee_id = ?
+      WHERE m.assignee_id = $1
       ORDER BY m.created_at DESC
       LIMIT 5
-    `).all(req.params.id);
+    `, [req.params.id]);
+    const recentMissions = recentMissionsRes.rows;
 
-    const achievements = db.prepare(`
+    const achievementsRes = await db.query(`
       SELECT badge_type, badge_name, badge_description, earned_at
       FROM achievements
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY earned_at DESC
-    `).all(req.params.id);
+    `, [req.params.id]);
+    const achievements = achievementsRes.rows;
 
     // Area rank (position among users in same area)
-    const areaRank = db.prepare(`
+    const areaRankRes = await db.query(`
       SELECT COUNT(*) + 1 as rank FROM users
-      WHERE area = ? AND xp > ? AND id != ?
-    `).get(user.area, user.xp, user.id);
+      WHERE area = $1 AND xp > $2 AND id != $3
+    `, [user.area, user.xp, user.id]);
+    const areaRank = areaRankRes.rows[0];
 
     // City rank
-    const cityRank = db.prepare(`
+    const cityRankRes = await db.query(`
       SELECT COUNT(*) + 1 as rank FROM users
-      WHERE city = ? AND xp > ? AND id != ?
-    `).get(user.city, user.xp, user.id);
+      WHERE city = $1 AND xp > $2 AND id != $3
+    `, [user.city, user.xp, user.id]);
+    const cityRank = cityRankRes.rows[0];
 
     res.json({
       id: user.id,
@@ -65,8 +71,8 @@ router.get('/:id', optionalAuth, (req, res) => {
       totalReports: user.total_reports,
       totalMissions: user.total_missions,
       totalVerifications: user.total_verifications,
-      areaRank: areaRank ? areaRank.rank : 1,
-      cityRank: cityRank ? cityRank.rank : 1,
+      areaRank: areaRank ? parseInt(areaRank.rank, 10) : 1,
+      cityRank: cityRank ? parseInt(cityRank.rank, 10) : 1,
       recentReports,
       recentMissions,
       achievements,
@@ -82,7 +88,7 @@ router.get('/:id', optionalAuth, (req, res) => {
  * PATCH /api/users/:id
  * Update user profile (name, city, area, avatar)
  */
-router.patch('/:id', requireAuth, (req, res) => {
+router.patch('/:id', requireAuth, async (req, res) => {
   try {
     if (req.userId !== req.params.id) {
       return res.status(403).json({ error: 'Can only update your own profile' });
@@ -92,10 +98,10 @@ router.patch('/:id', requireAuth, (req, res) => {
     const updates = [];
     const params = [];
 
-    if (name) { updates.push('name = ?'); params.push(name.trim()); }
-    if (city) { updates.push('city = ?'); params.push(city.trim()); }
-    if (area) { updates.push('area = ?'); params.push(area.trim()); }
-    if (avatar) { updates.push('avatar = ?'); params.push(avatar); }
+    if (name) { params.push(name.trim()); updates.push(`name = $${params.length}`); }
+    if (city) { params.push(city.trim()); updates.push(`city = $${params.length}`); }
+    if (area) { params.push(area.trim()); updates.push(`area = $${params.length}`); }
+    if (avatar) { params.push(avatar); updates.push(`avatar = $${params.length}`); }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -104,9 +110,10 @@ router.patch('/:id', requireAuth, (req, res) => {
     updates.push('updated_at = CURRENT_TIMESTAMP');
     params.push(req.params.id);
 
-    db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    const userRes = await db.query('SELECT * FROM users WHERE id = $1', [req.params.id]);
+    const user = userRes.rows[0];
     res.json({
       id: user.id,
       name: user.name,

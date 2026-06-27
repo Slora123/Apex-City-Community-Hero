@@ -15,7 +15,7 @@ const notifications = require('../services/notifications');
  * GET /api/issues
  * List all issues, optionally filter by status, type, lat/lng/radius
  */
-router.get('/', optionalAuth, (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { status, type, lat, lng, radius = 5000 } = req.query;
 
@@ -29,19 +29,20 @@ router.get('/', optionalAuth, (req, res) => {
     const params = [];
 
     if (status) {
-      conditions.push('i.status = ?');
       params.push(status);
+      conditions.push(`i.status = $${params.length}`);
     }
     if (type) {
-      conditions.push('i.type = ?');
       params.push(type);
+      conditions.push(`i.type = $${params.length}`);
     }
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
     query += ' ORDER BY i.created_at DESC';
 
-    let issues = db.prepare(query).all(...params);
+    const issuesRes = await db.query(query, params);
+    let issues = issuesRes.rows;
 
     // Client-side distance filter if lat/lng provided
     if (lat && lng) {
@@ -74,39 +75,43 @@ router.get('/', optionalAuth, (req, res) => {
  * GET /api/issues/:id
  * Single issue with full details
  */
-router.get('/:id', optionalAuth, (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const issue = db.prepare(`
+    const issueRes = await db.query(`
       SELECT i.*, u.name as reporter_name, u.city as reporter_city,
              (SELECT COUNT(*) FROM reports r WHERE r.issue_id = i.id) as report_count,
              (SELECT COUNT(*) FROM verifications v WHERE v.issue_id = i.id) as verification_count
       FROM issues i
       LEFT JOIN users u ON i.reporter_id = u.id
-      WHERE i.id = ?
-    `).get(req.params.id);
+      WHERE i.id = $1
+    `, [req.params.id]);
+    
+    const issue = issueRes.rows[0];
 
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
     // Get all reporters (FIFO order)
-    const reporters = db.prepare(`
+    const reportersRes = await db.query(`
       SELECT r.report_order, r.points_awarded, r.created_at,
              u.name, u.avatar, u.level
       FROM reports r
       JOIN users u ON r.reporter_id = u.id
-      WHERE r.issue_id = ?
+      WHERE r.issue_id = $1
       ORDER BY r.report_order ASC
-    `).all(req.params.id);
+    `, [req.params.id]);
+    const reporters = reportersRes.rows;
 
     // Get related mission
-    const mission = db.prepare(`
+    const missionRes = await db.query(`
       SELECT m.*, u.name as assignee_name
       FROM missions m
       LEFT JOIN users u ON m.assignee_id = u.id
-      WHERE m.issue_id = ?
+      WHERE m.issue_id = $1
       LIMIT 1
-    `).get(req.params.id);
+    `, [req.params.id]);
+    const mission = missionRes.rows[0];
 
     res.json({
       ...issue,
@@ -169,7 +174,7 @@ router.post('/', requireAuth, (req, res) => {
       const effectivePriority = aiAnalysis.priority || 'Moderate';
 
       // Check if a very similar issue exists nearby (within ~200m) to merge
-      const existingIssue = findNearbyDuplicateIssue(lat, lng, effectiveType, 0.2);
+      const existingIssue = await findNearbyDuplicateIssue(lat, lng, effectiveType, 0.2);
 
       let issueId;
       let reportOrder;
@@ -178,15 +183,16 @@ router.post('/', requireAuth, (req, res) => {
       if (existingIssue) {
         // Add as co-reporter to existing issue
         issueId = existingIssue.id;
-        const existingReportCount = db.prepare('SELECT COUNT(*) as c FROM reports WHERE issue_id = ?').get(issueId);
-        reportOrder = (existingReportCount ? existingReportCount.c : 0) + 1;
+        const countRes = await db.query('SELECT COUNT(*) as c FROM reports WHERE issue_id = $1', [issueId]);
+        const existingReportCount = parseInt(countRes.rows[0].c, 10);
+        reportOrder = existingReportCount + 1;
 
         // Update reporter count on issue
-        db.prepare('UPDATE issues SET reporter_count = reporter_count + 1 WHERE id = ?').run(issueId);
+        await db.query('UPDATE issues SET reporter_count = reporter_count + 1 WHERE id = $1', [issueId]);
 
         // Confidence threshold logic: AI confidence increases with multiple reports
         if (existingIssue.status === 'pending' && reportOrder >= 2) {
-          db.prepare("UPDATE issues SET status = 'active' WHERE id = ?").run(issueId);
+          await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [issueId]);
         }
       } else {
         // Create new issue
@@ -194,10 +200,10 @@ router.post('/', requireAuth, (req, res) => {
         isNew = true;
         reportOrder = 1;
 
-        db.prepare(`
+        await db.query(`
           INSERT INTO issues (id, title, type, category, severity, priority, lat, lng, address, status, reporter_id, reporter_count, photo_path, description, ai_analysis)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 1, ?, ?, ?)
-        `).run(
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, 1, $11, $12, $13)
+        `, [
           issueId,
           title,
           effectiveType,
@@ -211,13 +217,13 @@ router.post('/', requireAuth, (req, res) => {
           photoPath,
           description,
           JSON.stringify(aiAnalysis)
-        );
+        ]);
 
         // Create a mission for this issue
         const missionId = uuidv4();
-        db.prepare(`
-          INSERT INTO missions (id, issue_id, status) VALUES (?, ?, 'available')
-        `).run(missionId, issueId);
+        await db.query(`
+          INSERT INTO missions (id, issue_id, status) VALUES ($1, $2, 'available')
+        `, [missionId, issueId]);
       }
 
       // Record the FIFO report entry
@@ -225,26 +231,28 @@ router.post('/', requireAuth, (req, res) => {
       const reportPoints = calculateReportReward(reportOrder, effectiveSeverity);
 
       try {
-        db.prepare(`
+        await db.query(`
           INSERT INTO reports (id, issue_id, reporter_id, report_order, points_awarded)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(reportId, issueId, req.userId, reportOrder, reportPoints);
+          VALUES ($1, $2, $3, $4, $5)
+        `, [reportId, issueId, req.userId, reportOrder, reportPoints]);
       } catch (dupErr) {
         // User already reported this issue — still give them partial points but don't duplicate
         console.warn('User already reported this issue');
       }
 
       // Award XP to reporter
-      const xpResult = awardXP(db, req.userId, reportPoints, `Reported ${effectiveCategory}`, issueId);
+      const xpResult = await awardXP(db, req.userId, reportPoints, `Reported ${effectiveCategory}`, issueId);
 
       // Update user stats
-      db.prepare('UPDATE users SET total_reports = total_reports + 1 WHERE id = ?').run(req.userId);
+      await db.query('UPDATE users SET total_reports = total_reports + 1 WHERE id = $1', [req.userId]);
 
       // Get the created/updated issue
-      const issue = db.prepare('SELECT * FROM issues WHERE id = ?').get(issueId);
+      const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [issueId]);
+      const issue = issueRes.rows[0];
 
       // Notify nearby users via Socket.io
-      const reporter = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+      const reporterRes = await db.query('SELECT * FROM users WHERE id = $1', [req.userId]);
+      const reporter = reporterRes.rows[0];
       notifications.notifyNewIssue(issue, reporter);
 
       res.status(isNew ? 201 : 200).json({
@@ -271,7 +279,7 @@ router.post('/', requireAuth, (req, res) => {
  * PATCH /api/issues/:id/status
  * Update issue status (for authority dashboard)
  */
-router.patch('/:id/status', requireAuth, (req, res) => {
+router.patch('/:id/status', requireAuth, async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ['pending', 'active', 'resolved', 'closed'];
@@ -280,18 +288,20 @@ router.patch('/:id/status', requireAuth, (req, res) => {
       return res.status(400).json({ error: `Invalid status. Use: ${validStatuses.join(', ')}` });
     }
 
-    const issue = db.prepare('SELECT * FROM issues WHERE id = ?').get(req.params.id);
+    const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [req.params.id]);
+    const issue = issueRes.rows[0];
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
     const resolvedAt = status === 'resolved' ? new Date().toISOString() : null;
-    db.prepare(`
-      UPDATE issues SET status = ?, resolved_at = ? WHERE id = ?
-    `).run(status, resolvedAt, req.params.id);
+    await db.query(`
+      UPDATE issues SET status = $1, resolved_at = $2 WHERE id = $3
+    `, [status, resolvedAt, req.params.id]);
 
     if (status === 'resolved') {
-      const resolver = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+      const resolverRes = await db.query('SELECT * FROM users WHERE id = $1', [req.userId]);
+      const resolver = resolverRes.rows[0];
       notifications.notifyIssueResolved(issue, resolver);
     }
 
@@ -304,15 +314,15 @@ router.patch('/:id/status', requireAuth, (req, res) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function findNearbyDuplicateIssue(lat, lng, type, radiusKm) {
+async function findNearbyDuplicateIssue(lat, lng, type, radiusKm) {
   if (!lat || !lng) return null;
-  const issues = db.prepare(`
+  const issuesRes = await db.query(`
     SELECT * FROM issues
-    WHERE type = ? AND status NOT IN ('resolved', 'closed')
+    WHERE type = $1 AND status NOT IN ('resolved', 'closed')
     AND lat IS NOT NULL AND lng IS NOT NULL
-  `).all(type);
+  `, [type]);
 
-  for (const issue of issues) {
+  for (const issue of issuesRes.rows) {
     const dist = haversineDistance(parseFloat(lat), parseFloat(lng), issue.lat, issue.lng);
     if (dist <= radiusKm) {
       return issue;

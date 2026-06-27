@@ -1,56 +1,68 @@
 'use strict';
 
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
-const DB_PATH = process.env.DB_PATH || './db/community_hero.db';
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // Required for Neon
+});
 
-// Ensure the db directory exists
-const dbDir = path.dirname(path.resolve(DB_PATH));
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Utility wrapper to match some of the old synchronous feel
+const db = {
+  query: (text, params) => pool.query(text, params),
+  pool
+};
+
+async function initDB() {
+  try {
+    console.log('⏳ Connecting to PostgreSQL (Neon)...');
+    
+    // Run schema
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    
+    // Execute the schema to create tables
+    await pool.query(schema);
+    console.log('✅ Schema initialized');
+
+    // Add password column to users if it doesn't exist (handled by CREATE TABLE IF NOT EXISTS now, but let's be safe)
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Check if we need to seed
+    const res = await pool.query('SELECT COUNT(*) as c FROM issues');
+    const issueCount = parseInt(res.rows[0].c, 10);
+    
+    if (issueCount === 0) {
+      await seedDemoData();
+    }
+  } catch (err) {
+    console.error('❌ Database initialization error:', err);
+  }
 }
 
-const db = new Database(path.resolve(DB_PATH));
-
-// Enable WAL mode for better concurrent read performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-// Run schema
-const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-db.exec(schema);
-
-// Migration: add password column to users if it doesn't exist
-try {
-  db.prepare("ALTER TABLE users ADD COLUMN password TEXT DEFAULT ''").run();
-} catch (e) {
-  // Column already exists, ignore
-}
-
-// Seed some demo issues if the DB is empty (disabled for production)
-// const issueCount = db.prepare('SELECT COUNT(*) as c FROM issues').get();
-// if (issueCount.c === 0) {
-//   seedDemoData(db);
-// }
-
-function seedDemoData(db) {
-  const { v4: uuidv4 } = require ? (() => { try { return require('uuid'); } catch { return { v4: () => Math.random().toString(36).substr(2, 9) }; } })() : { v4: () => Math.random().toString(36).substr(2, 9) };
+async function seedDemoData() {
+  const { v4: uuidv4 } = require('uuid');
 
   // Create a demo authority user
   const authorityId = 'demo-authority-001';
   const heroId = 'demo-hero-001';
 
-  const insertUser = db.prepare(`
-    INSERT OR IGNORE INTO users (id, name, email, city, area, avatar, level, xp, rank, total_reports, total_missions)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+  const insertUser = `
+    INSERT INTO users (id, name, email, city, area, avatar, level, xp, rank, total_reports, total_missions)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    ON CONFLICT (id) DO NOTHING
+  `;
 
-  insertUser.run(authorityId, 'City Authority', 'authority@cityhero.ai', 'Demo City', 'Central', 'male', 5, 2450, 'City Guardian', 8, 3);
-  insertUser.run(heroId, 'Demo Hero', 'hero@cityhero.ai', 'Demo City', 'North District', 'female', 3, 850, 'Rising Hero', 5, 2);
+  await pool.query(insertUser, [authorityId, 'City Authority', 'authority@cityhero.ai', 'Demo City', 'Central', 'male', 5, 2450, 'City Guardian', 8, 3]);
+  await pool.query(insertUser, [heroId, 'Demo Hero', 'hero@cityhero.ai', 'Demo City', 'North District', 'female', 3, 850, 'Rising Hero', 5, 2]);
 
   const demoIssues = [
     {
@@ -135,24 +147,34 @@ function seedDemoData(db) {
     }
   ];
 
-  const insertIssue = db.prepare(`
-    INSERT OR IGNORE INTO issues (id, title, type, category, severity, priority, lat, lng, address, status, reporter_id, reporter_count, description, ai_analysis)
-    VALUES (@id, @title, @type, @category, @severity, @priority, @lat, @lng, @address, @status, @reporter_id, @reporter_count, @description, @ai_analysis)
-  `);
+  const insertIssue = `
+    INSERT INTO issues (id, title, type, category, severity, priority, lat, lng, address, status, reporter_id, reporter_count, description, ai_analysis)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    ON CONFLICT (id) DO NOTHING
+  `;
 
-  const insertMission = db.prepare(`
-    INSERT OR IGNORE INTO missions (id, issue_id, status)
-    VALUES (?, ?, ?)
-  `);
+  const insertMission = `
+    INSERT INTO missions (id, issue_id, status)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (id) DO NOTHING
+  `;
 
-  demoIssues.forEach(issue => {
-    insertIssue.run(issue);
+  for (const issue of demoIssues) {
+    await pool.query(insertIssue, [
+      issue.id, issue.title, issue.type, issue.category, issue.severity, issue.priority,
+      issue.lat, issue.lng, issue.address, issue.status, issue.reporter_id, issue.reporter_count,
+      issue.description, issue.ai_analysis
+    ]);
     if (issue.status !== 'resolved') {
-      insertMission.run(`mission-${issue.id}`, issue.id, 'available');
+      await pool.query(insertMission, [`mission-${issue.id}`, issue.id, 'available']);
     }
-  });
+  }
 
   console.log('✅ Demo data seeded successfully');
 }
 
+// Initialize database connection
+initDB();
+
 module.exports = db;
+

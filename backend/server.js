@@ -64,20 +64,26 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Health Check ─────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  const issueCount = db.prepare('SELECT COUNT(*) as c FROM issues').get();
-  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get();
-  res.json({
-    status: 'ok',
-    message: '🦸 Apex City - Community Hero Backend is running!',
-    version: '1.0.0',
-    database: {
-      issues: issueCount ? issueCount.c : 0,
-      users: userCount ? userCount.c : 0
-    },
-    aiProvider: process.env.GEMINI_API_KEY ? 'gemini' : 'mock',
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    const issueCountRes = await db.query('SELECT COUNT(*) as c FROM issues');
+    const issueCount = issueCountRes.rows[0];
+    const userCountRes = await db.query('SELECT COUNT(*) as c FROM users');
+    const userCount = userCountRes.rows[0];
+    res.json({
+      status: 'ok',
+      message: '🦸 Apex City - Community Hero Backend is running!',
+      version: '1.0.0',
+      database: {
+        issues: issueCount ? parseInt(issueCount.c, 10) : 0,
+        users: userCount ? parseInt(userCount.c, 10) : 0
+      },
+      aiProvider: process.env.GEMINI_API_KEY ? 'gemini' : 'mock',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
 });
 
 // ── API Routes ────────────────────────────────────────────────────────────
@@ -110,7 +116,7 @@ server.listen(PORT, () => {
   console.log(`  🚀  Running at:    http://localhost:${PORT}`);
   console.log(`  📊  Health check:  http://localhost:${PORT}/api/health`);
   console.log(`  🤖  AI Provider:   ${process.env.GEMINI_API_KEY ? '✅ Gemini Vision' : '🎭 Smart Mock'}`);
-  console.log(`  🗄️   Database:      ${process.env.DB_PATH || './db/community_hero.db'}`);
+  console.log(`  🗄️   Database:      ${process.env.DATABASE_URL ? 'PostgreSQL' : 'Unknown'}`);
   console.log('='.repeat(55) + '\n');
 });
 

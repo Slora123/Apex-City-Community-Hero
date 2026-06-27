@@ -14,7 +14,7 @@ const notifications = require('../services/notifications');
  * GET /api/missions
  * List missions — optionally filter by status, near a location
  */
-router.get('/', optionalAuth, (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const { status = 'available', lat, lng, radius = 10000 } = req.query;
 
@@ -32,13 +32,14 @@ router.get('/', optionalAuth, (req, res) => {
     const params = [];
 
     if (status !== 'all') {
-      query += ' AND m.status = ?';
       params.push(status);
+      query += ` AND m.status = $${params.length}`;
     }
 
     query += ' ORDER BY i.severity DESC, m.created_at DESC';
 
-    let missions = db.prepare(query).all(...params);
+    const missionsRes = await db.query(query, params);
+    let missions = missionsRes.rows;
 
     // Distance filter
     if (lat && lng) {
@@ -72,9 +73,9 @@ router.get('/', optionalAuth, (req, res) => {
  * GET /api/missions/:id
  * Single mission details
  */
-router.get('/:id', optionalAuth, (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
-    const mission = db.prepare(`
+    const missionRes = await db.query(`
       SELECT m.*,
              i.title as issue_title, i.type as issue_type, i.category, i.severity, i.priority,
              i.lat as issue_lat, i.lng as issue_lng, i.address, i.description,
@@ -83,8 +84,10 @@ router.get('/:id', optionalAuth, (req, res) => {
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
       LEFT JOIN users u ON m.assignee_id = u.id
-      WHERE m.id = ?
-    `).get(req.params.id);
+      WHERE m.id = $1
+    `, [req.params.id]);
+
+    const mission = missionRes.rows[0];
 
     if (!mission) {
       return res.status(404).json({ error: 'Mission not found' });
@@ -107,9 +110,10 @@ router.get('/:id', optionalAuth, (req, res) => {
  * POST /api/missions/:id/accept
  * Accept a mission — assigns it to the current user
  */
-router.post('/:id/accept', requireAuth, (req, res) => {
+router.post('/:id/accept', requireAuth, async (req, res) => {
   try {
-    const mission = db.prepare('SELECT * FROM missions WHERE id = ?').get(req.params.id);
+    const missionRes = await db.query('SELECT * FROM missions WHERE id = $1', [req.params.id]);
+    const mission = missionRes.rows[0];
 
     if (!mission) {
       return res.status(404).json({ error: 'Mission not found' });
@@ -118,14 +122,14 @@ router.post('/:id/accept', requireAuth, (req, res) => {
       return res.status(409).json({ error: 'Mission is no longer available' });
     }
 
-    db.prepare(`
+    await db.query(`
       UPDATE missions
-      SET status = 'active', assignee_id = ?, accepted_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(req.userId, req.params.id);
+      SET status = 'active', assignee_id = $1, accepted_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [req.userId, req.params.id]);
 
     // Update issue status to active
-    db.prepare("UPDATE issues SET status = 'active' WHERE id = ?").run(mission.issue_id);
+    await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [mission.issue_id]);
 
     res.json({ success: true, missionId: mission.id, message: 'Mission accepted! Navigate to the location.' });
   } catch (err) {
@@ -146,14 +150,15 @@ router.post('/:id/before-photo', requireAuth, (req, res) => {
     }
 
     try {
-      const mission = db.prepare('SELECT * FROM missions WHERE id = ?').get(req.params.id);
+      const missionRes = await db.query('SELECT * FROM missions WHERE id = $1', [req.params.id]);
+      const mission = missionRes.rows[0];
 
       if (!mission) return res.status(404).json({ error: 'Mission not found' });
       if (mission.assignee_id !== req.userId) return res.status(403).json({ error: 'Not your mission' });
       if (!req.file) return res.status(400).json({ error: 'Photo is required' });
 
       const photoPath = `missions/${req.file.filename}`;
-      db.prepare('UPDATE missions SET before_photo = ? WHERE id = ?').run(photoPath, req.params.id);
+      await db.query('UPDATE missions SET before_photo = $1 WHERE id = $2', [photoPath, req.params.id]);
 
       res.json({
         success: true,
@@ -179,12 +184,13 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
     }
 
     try {
-      const mission = db.prepare(`
+      const missionRes = await db.query(`
         SELECT m.*, i.type as issue_type, i.severity, i.title as issue_title, i.address
         FROM missions m
         JOIN issues i ON m.issue_id = i.id
-        WHERE m.id = ?
-      `).get(req.params.id);
+        WHERE m.id = $1
+      `, [req.params.id]);
+      const mission = missionRes.rows[0];
 
       if (!mission) return res.status(404).json({ error: 'Mission not found' });
       if (mission.assignee_id !== req.userId) return res.status(403).json({ error: 'Not your mission' });
@@ -192,7 +198,7 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
       if (!mission.before_photo) return res.status(400).json({ error: 'Upload before photo first' });
 
       const afterPath = `missions/${req.file.filename}`;
-      db.prepare('UPDATE missions SET after_photo = ? WHERE id = ?').run(afterPath, req.params.id);
+      await db.query('UPDATE missions SET after_photo = $1 WHERE id = $2', [afterPath, req.params.id]);
 
       // Run AI comparison
       const path = require('path');
@@ -213,10 +219,11 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
       }
 
       // Update issue resolution photo
-      db.prepare('UPDATE issues SET resolution_photo = ? WHERE id = ?').run(afterPath, mission.issue_id);
+      await db.query('UPDATE issues SET resolution_photo = $1 WHERE id = $2', [afterPath, mission.issue_id]);
 
       // Notify community for verification
-      const issue = db.prepare('SELECT * FROM issues WHERE id = ?').get(mission.issue_id);
+      const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [mission.issue_id]);
+      const issue = issueRes.rows[0];
       notifications.notifyVerificationNeeded(issue);
 
       res.json({
@@ -236,7 +243,7 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
  * POST /api/missions/:id/verify
  * Submit community verification verdict
  */
-router.post('/:id/verify', requireAuth, (req, res) => {
+router.post('/:id/verify', requireAuth, async (req, res) => {
   try {
     const { verdict } = req.body;
     const validVerdicts = ['Fully Resolved', 'Partially Resolved', 'Not Resolved'];
@@ -245,33 +252,36 @@ router.post('/:id/verify', requireAuth, (req, res) => {
       return res.status(400).json({ error: `Invalid verdict. Use: ${validVerdicts.join(', ')}` });
     }
 
-    const mission = db.prepare(`
+    const missionRes = await db.query(`
       SELECT m.*, i.type as issue_type, i.severity, i.title as issue_title, i.address
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
-      WHERE m.id = ?
-    `).get(req.params.id);
+      WHERE m.id = $1
+    `, [req.params.id]);
+    const mission = missionRes.rows[0];
 
     if (!mission) return res.status(404).json({ error: 'Mission not found' });
     if (mission.assignee_id === req.userId) return res.status(403).json({ error: 'You cannot verify your own mission' });
 
     // Check for duplicate verification
-    const existing = db.prepare('SELECT id FROM verifications WHERE mission_id = ? AND verifier_id = ?').get(req.params.id, req.userId);
+    const existingRes = await db.query('SELECT id FROM verifications WHERE mission_id = $1 AND verifier_id = $2', [req.params.id, req.userId]);
+    const existing = existingRes.rows[0];
     if (existing) return res.status(409).json({ error: 'You already verified this mission' });
 
     // Record verification
     const verifId = uuidv4();
-    db.prepare(`
+    await db.query(`
       INSERT INTO verifications (id, issue_id, mission_id, verifier_id, verdict, points_awarded)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(verifId, mission.issue_id, req.params.id, req.userId, verdict, VERIFICATION_REWARD);
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [verifId, mission.issue_id, req.params.id, req.userId, verdict, VERIFICATION_REWARD]);
 
     // Award verifier their points
-    awardXP(db, req.userId, VERIFICATION_REWARD, `Verified resolution of ${mission.issue_title}`, mission.id);
-    db.prepare('UPDATE users SET total_verifications = total_verifications + 1 WHERE id = ?').run(req.userId);
+    await awardXP(db, req.userId, VERIFICATION_REWARD, `Verified resolution of ${mission.issue_title}`, mission.id);
+    await db.query('UPDATE users SET total_verifications = total_verifications + 1 WHERE id = $1', [req.userId]);
 
     // Check if enough verifications to auto-complete mission
-    const allVerifications = db.prepare('SELECT verdict FROM verifications WHERE mission_id = ?').all(req.params.id);
+    const allVerificationsRes = await db.query('SELECT verdict FROM verifications WHERE mission_id = $1', [req.params.id]);
+    const allVerifications = allVerificationsRes.rows;
     const totalVerifs = allVerifications.length;
 
     const fullyResolved = allVerifications.filter(v => v.verdict === 'Fully Resolved').length;
@@ -296,22 +306,24 @@ router.post('/:id/verify', requireAuth, (req, res) => {
         missionCompleted = true;
         const solvePoints = calculateSolveReward(mission.issue_type, mission.severity, finalVerdict);
 
-        db.prepare(`
-          UPDATE missions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?
-        `).run(req.params.id);
+        await db.query(`
+          UPDATE missions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1
+        `, [req.params.id]);
 
-        db.prepare("UPDATE issues SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?").run(mission.issue_id);
+        await db.query("UPDATE issues SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = $1", [mission.issue_id]);
 
         if (mission.assignee_id) {
-          const xpResult = awardXP(db, mission.assignee_id, solvePoints, `Solved ${mission.issue_title} (${finalVerdict})`, mission.id);
-          db.prepare('UPDATE users SET total_missions = total_missions + 1 WHERE id = ?').run(mission.assignee_id);
+          const xpResult = await awardXP(db, mission.assignee_id, solvePoints, `Solved ${mission.issue_title} (${finalVerdict})`, mission.id);
+          await db.query('UPDATE users SET total_missions = total_missions + 1 WHERE id = $1', [mission.assignee_id]);
 
           // Notify solver
           notifications.notifyXPAwarded(mission.assignee_id, solvePoints, `Mission completed: ${mission.issue_title}`);
 
           // Notify of resolution
-          const issue = db.prepare('SELECT * FROM issues WHERE id = ?').get(mission.issue_id);
-          const resolver = db.prepare('SELECT * FROM users WHERE id = ?').get(mission.assignee_id);
+          const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [mission.issue_id]);
+          const issue = issueRes.rows[0];
+          const resolverRes = await db.query('SELECT * FROM users WHERE id = $1', [mission.assignee_id]);
+          const resolver = resolverRes.rows[0];
           notifications.notifyIssueResolved(issue, resolver);
         }
       }

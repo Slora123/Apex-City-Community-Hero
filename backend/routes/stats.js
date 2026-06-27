@@ -8,127 +8,166 @@ const db = require('../db/init');
  * GET /api/stats
  * Aggregate impact statistics for the Impact Dashboard and Authority Dashboard
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     // Total issues breakdown
-    const totalIssues = db.prepare('SELECT COUNT(*) as c FROM issues').get();
-    const resolvedIssues = db.prepare("SELECT COUNT(*) as c FROM issues WHERE status = 'resolved'").get();
-    const pendingIssues = db.prepare("SELECT COUNT(*) as c FROM issues WHERE status = 'pending'").get();
-    const activeIssues = db.prepare("SELECT COUNT(*) as c FROM issues WHERE status = 'active'").get();
+    const totalIssuesRes = await db.query('SELECT COUNT(*) as c FROM issues');
+    const totalIssues = totalIssuesRes.rows[0];
+    
+    const resolvedIssuesRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE status = 'resolved'");
+    const resolvedIssues = resolvedIssuesRes.rows[0];
+    
+    const pendingIssuesRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE status = 'pending'");
+    const pendingIssues = pendingIssuesRes.rows[0];
+    
+    const activeIssuesRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE status = 'active'");
+    const activeIssues = activeIssuesRes.rows[0];
 
     // Active heroes (users with at least 1 report or mission in last 30 days)
-    const activeHeroes = db.prepare(`
+    const activeHeroesRes = await db.query(`
       SELECT COUNT(DISTINCT u.id) as c
       FROM users u
       WHERE u.total_reports > 0 OR u.total_missions > 0
-    `).get();
+    `);
+    const activeHeroes = activeHeroesRes.rows[0];
 
     // Category breakdown
-    const byCategory = db.prepare(`
+    const byCategoryRes = await db.query(`
       SELECT type, COUNT(*) as total,
              SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
              SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending
       FROM issues
       GROUP BY type
-    `).all();
+    `);
+    const byCategory = byCategoryRes.rows;
 
     // Severity breakdown
-    const bySeverity = db.prepare(`
+    const bySeverityRes = await db.query(`
       SELECT severity, COUNT(*) as count
       FROM issues
       GROUP BY severity
       ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END
-    `).all();
+    `);
+    const bySeverity = bySeverityRes.rows;
 
     // Monthly trend (last 6 months)
-    const monthlyTrend = db.prepare(`
+    const monthlyTrendRes = await db.query(`
       SELECT
-        strftime('%Y-%m', created_at) as month,
+        TO_CHAR(created_at, 'YYYY-MM') as month,
         COUNT(*) as reported,
         SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved
       FROM issues
-      WHERE created_at >= date('now', '-6 months')
+      WHERE created_at >= NOW() - INTERVAL '6 months'
       GROUP BY month
       ORDER BY month ASC
-    `).all();
+    `);
+    const monthlyTrend = monthlyTrendRes.rows;
 
     // Top contributors
-    const topContributors = db.prepare(`
+    const topContributorsRes = await db.query(`
       SELECT id, name, city, area, avatar, level, xp, rank,
              total_reports, total_missions, total_verifications
       FROM users
       ORDER BY xp DESC
       LIMIT 10
-    `).all();
+    `);
+    const topContributors = topContributorsRes.rows;
 
     // XP distributed total
-    const totalXpDistributed = db.prepare('SELECT SUM(amount) as total FROM xp_transactions').get();
+    const totalXpDistributedRes = await db.query('SELECT SUM(amount) as total FROM xp_transactions');
+    const totalXpDistributed = totalXpDistributedRes.rows[0];
 
     // Total verifications
-    const totalVerifications = db.prepare('SELECT COUNT(*) as c FROM verifications').get();
+    const totalVerificationsRes = await db.query('SELECT COUNT(*) as c FROM verifications');
+    const totalVerifications = totalVerificationsRes.rows[0];
 
     // Cities active (from users who have reported)
-    const citiesActive = db.prepare(
+    const citiesActiveRes = await db.query(
       "SELECT COUNT(DISTINCT city) as c FROM users WHERE city IS NOT NULL AND city != ''"
-    ).get();
+    );
+    const citiesActive = citiesActiveRes.rows[0];
 
     // Issues by specific type for Impact Dashboard
-    const wasteResolved = db.prepare("SELECT COUNT(*) as c FROM issues WHERE type = 'waste' AND status = 'resolved'").get();
-    const waterResolved = db.prepare("SELECT COUNT(*) as c FROM issues WHERE type = 'water_leak' AND status = 'resolved'").get();
-    const potholeReported = db.prepare("SELECT COUNT(*) as c FROM issues WHERE type = 'cracked_road'").get();
-    const lightsRestored = db.prepare("SELECT COUNT(*) as c FROM issues WHERE type = 'broken_light' AND status = 'resolved'").get();
-    const infraResolved = db.prepare("SELECT COUNT(*) as c FROM issues WHERE type = 'infrastructure' AND status = 'resolved'").get();
+    const wasteResolvedRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE type = 'waste' AND status = 'resolved'");
+    const wasteResolved = wasteResolvedRes.rows[0];
+    const waterResolvedRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE type = 'water_leak' AND status = 'resolved'");
+    const waterResolved = waterResolvedRes.rows[0];
+    const potholeReportedRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE type = 'cracked_road'");
+    const potholeReported = potholeReportedRes.rows[0];
+    const lightsRestoredRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE type = 'broken_light' AND status = 'resolved'");
+    const lightsRestored = lightsRestoredRes.rows[0];
+    const infraResolvedRes = await db.query("SELECT COUNT(*) as c FROM issues WHERE type = 'infrastructure' AND status = 'resolved'");
+    const infraResolved = infraResolvedRes.rows[0];
 
     // Recent activity (last 10 resolved issues)
-    const recentActivity = db.prepare(`
+    const recentActivityRes = await db.query(`
       SELECT i.id, i.title, i.type, i.category, i.severity, i.status,
              i.address, i.resolved_at, u.name as reporter_name
       FROM issues i
       LEFT JOIN users u ON i.reporter_id = u.id
       ORDER BY i.created_at DESC
       LIMIT 10
-    `).all();
+    `);
+    const recentActivity = recentActivityRes.rows;
 
     // Daily reports grouped by day of week (Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6)
     const dailyCounts = Array(7).fill(0);
-    const dailyStats = db.prepare(`
+    const dailyStatsRes = await db.query(`
       SELECT 
-        CAST(strftime('%w', created_at) AS INTEGER) as day,
+        EXTRACT(DOW FROM created_at) as day,
         COUNT(*) as count
       FROM issues
       GROUP BY day
-    `).all();
+    `);
+    const dailyStats = dailyStatsRes.rows;
+    
     dailyStats.forEach(row => {
-      let idx = row.day === 0 ? 6 : row.day - 1;
+      // PostgreSQL EXTRACT(DOW) returns 0 for Sunday, 1 for Monday, etc.
+      // SQLite strftime('%w') also returns 0 for Sunday.
+      // The original code did: `let idx = row.day === 0 ? 6 : row.day - 1;`
+      let dayInt = parseInt(row.day, 10);
+      let idx = dayInt === 0 ? 6 : dayInt - 1;
       if (idx >= 0 && idx < 7) {
-        dailyCounts[idx] = row.count;
+        dailyCounts[idx] = parseInt(row.count, 10);
       }
     });
 
     res.json({
       overview: {
-        totalIssues: totalIssues ? totalIssues.c : 0,
-        resolvedIssues: resolvedIssues ? resolvedIssues.c : 0,
-        pendingIssues: pendingIssues ? pendingIssues.c : 0,
-        activeIssues: activeIssues ? activeIssues.c : 0,
-        activeHeroes: activeHeroes ? activeHeroes.c : 0,
-        totalVerifications: totalVerifications ? totalVerifications.c : 0,
-        totalXpDistributed: totalXpDistributed ? (totalXpDistributed.total || 0) : 0,
-        citiesActive: citiesActive ? citiesActive.c : 0,
-        resolutionRate: totalIssues && totalIssues.c > 0
-          ? Math.round((resolvedIssues.c / totalIssues.c) * 100)
+        totalIssues: totalIssues ? parseInt(totalIssues.c, 10) : 0,
+        resolvedIssues: resolvedIssues ? parseInt(resolvedIssues.c, 10) : 0,
+        pendingIssues: pendingIssues ? parseInt(pendingIssues.c, 10) : 0,
+        activeIssues: activeIssues ? parseInt(activeIssues.c, 10) : 0,
+        activeHeroes: activeHeroes ? parseInt(activeHeroes.c, 10) : 0,
+        totalVerifications: totalVerifications ? parseInt(totalVerifications.c, 10) : 0,
+        totalXpDistributed: totalXpDistributed ? parseInt(totalXpDistributed.total || 0, 10) : 0,
+        citiesActive: citiesActive ? parseInt(citiesActive.c, 10) : 0,
+        resolutionRate: totalIssues && parseInt(totalIssues.c, 10) > 0
+          ? Math.round((parseInt(resolvedIssues.c, 10) / parseInt(totalIssues.c, 10)) * 100)
           : 0
       },
       impact: {
-        wasteRemoved: wasteResolved ? wasteResolved.c : 0,
-        waterLeakagesFixed: waterResolved ? waterResolved.c : 0,
-        potholesReported: potholeReported ? potholeReported.c : 0,
-        streetlightsRestored: lightsRestored ? lightsRestored.c : 0,
-        infrastructureResolved: infraResolved ? infraResolved.c : 0
+        wasteRemoved: wasteResolved ? parseInt(wasteResolved.c, 10) : 0,
+        waterLeakagesFixed: waterResolved ? parseInt(waterResolved.c, 10) : 0,
+        potholesReported: potholeReported ? parseInt(potholeReported.c, 10) : 0,
+        streetlightsRestored: lightsRestored ? parseInt(lightsRestored.c, 10) : 0,
+        infrastructureResolved: infraResolved ? parseInt(infraResolved.c, 10) : 0
       },
-      byCategory,
-      bySeverity,
-      monthlyTrend,
+      byCategory: byCategory.map(c => ({
+        type: c.type,
+        total: parseInt(c.total, 10),
+        resolved: parseInt(c.resolved, 10),
+        pending: parseInt(c.pending, 10)
+      })),
+      bySeverity: bySeverity.map(s => ({
+        severity: s.severity,
+        count: parseInt(s.count, 10)
+      })),
+      monthlyTrend: monthlyTrend.map(m => ({
+        month: m.month,
+        reported: parseInt(m.reported, 10),
+        resolved: parseInt(m.resolved, 10)
+      })),
       dailyReports: dailyCounts,
       topContributors: topContributors.map((u, i) => ({
         position: i + 1,

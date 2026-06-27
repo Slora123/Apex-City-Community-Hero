@@ -9,14 +9,15 @@ const { requireAuth, optionalAuth } = require('../middleware/auth');
  * GET /api/achievements/:userId
  * Get all earned achievements for a user
  */
-router.get('/:userId', optionalAuth, (req, res) => {
+router.get('/:userId', optionalAuth, async (req, res) => {
   try {
-    const achievements = db.prepare(`
+    const achievementsRes = await db.query(`
       SELECT badge_type, badge_name, badge_description, earned_at
       FROM achievements
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY earned_at DESC
-    `).all(req.params.userId);
+    `, [req.params.userId]);
+    const achievements = achievementsRes.rows;
 
     // All possible badges (for "locked" display on frontend)
     const allBadges = [
