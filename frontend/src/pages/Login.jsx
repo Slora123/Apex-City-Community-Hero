@@ -229,20 +229,17 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card" style={{ position: 'relative', width: '90%', maxWidth: '400px', margin: '0 auto' }}>
-        <picture style={{ width: '100%', height: '100%', display: 'block' }}>
-          <source media="(max-width: 600px)" srcSet="/landing_mobile.png" />
-          <img
-            src="/login.png"
-            alt="Journey Access Panel"
-            style={{ 
-              width: '100%', 
-              height: '100%',
-              minHeight: step === 'choose' ? '380px' : (step === 'email' && emailMode === 'signup') ? '620px' : (step === 'email' && emailMode === 'signin') ? '420px' : '480px',
-              objectFit: 'fill',
-              display: 'block' 
-            }}
-          />
-        </picture>
+        <img
+          src="/login.png"
+          alt="Journey Access Panel"
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            minHeight: step === 'choose' ? '400px' : (step === 'email' && emailMode === 'signup') ? '680px' : (step === 'email' && emailMode === 'signin') ? '480px' : '520px',
+            objectFit: 'fill',
+            display: 'block' 
+          }}
+        />
 
         <div style={{
           position: 'absolute',

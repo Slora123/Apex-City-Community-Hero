@@ -41,6 +41,21 @@ export default function Landing() {
           background-position: center;
           box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
+
+        /* Default start button for desktop landing.png */
+        .start-button {
+          position: absolute;
+          left: 32%;
+          width: 36%;
+          bottom: 12%;
+          height: 14%;
+          background-color: transparent;
+          border: none;
+          cursor: pointer;
+          outline: none;
+          z-index: 10;
+        }
+
         @media (min-width: 769px) {
           @media (min-aspect-ratio: 16/9) {
             .bg-cover-container {
@@ -83,20 +98,6 @@ export default function Landing() {
               height: 100vh;
             }
           }
-        }
-
-        /* Default start button for desktop landing.png */
-        .start-button {
-          position: absolute;
-          left: 32%;
-          width: 36%;
-          bottom: 12%;
-          height: 14%;
-          background-color: transparent;
-          border: none;
-          cursor: pointer;
-          outline: none;
-          z-index: 10;
         }
       `}</style>
 
