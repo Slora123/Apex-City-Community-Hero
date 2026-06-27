@@ -122,12 +122,9 @@ export default function Report() {
             );
             const data = await response.json();
             if (data && data.display_name) {
-              const addr = data.address;
-              const street = addr.road || addr.suburb || addr.pedestrian || '';
-              const city = addr.city || addr.town || addr.village || '';
-              const country = addr.country || '';
-              const cleanAddress = [street, city, country].filter(Boolean).join(', ');
-              setAddress(cleanAddress || data.display_name);
+              const parts = data.display_name.split(',').map(p => p.trim());
+              const preciseAddress = parts.slice(0, 3).join(', ');
+              setAddress(preciseAddress || data.display_name);
             } else {
               setAddress(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
             }
@@ -162,6 +159,8 @@ export default function Report() {
 
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
+
+  const [submitDetails, setSubmitDetails] = useState(null);
 
   // Cycle issue type to allow interactive testing
   const handleCycleIssue = () => {
@@ -225,6 +224,11 @@ export default function Report() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!selectedFile) {
+      alert("Please upload a photo of the anomaly so our AI can verify and categorize it!");
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitPhase('wax');
@@ -252,6 +256,10 @@ export default function Report() {
       
       const points = result?.pointsAwarded || 0;
       setEarnedPoints(points);
+      setSubmitDetails({
+        severity: result?.issue?.severity || reported.severity,
+        reportOrder: result?.reportOrder || 1
+      });
       
       setIsSubmitting(false);
       setSubmitPhase('');
@@ -643,6 +651,9 @@ export default function Report() {
 
             <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
               The Guild has received your scroll. Artisans have been dispatched to investigate and repair the anomaly at the coordinates.
+              <br/><br/>
+              <strong>Issue Severity:</strong> {submitDetails?.severity ? submitDetails.severity.charAt(0).toUpperCase() + submitDetails.severity.slice(1) : 'Medium'}<br/>
+              <strong>Reporter Status:</strong> {submitDetails?.reportOrder === 1 ? '1st (First Reporter!)' : submitDetails?.reportOrder + (submitDetails?.reportOrder===2?'nd':submitDetails?.reportOrder===3?'rd':'th') + ' Reporter'}
             </p>
 
             <div style={{
