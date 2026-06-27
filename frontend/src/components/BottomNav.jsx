@@ -36,10 +36,11 @@ export default function BottomNav() {
           background-color: rgba(40, 24, 16, 0.96);
           border: 2px solid #8B5E34;
           border-radius: 40px;
-          display: flex;
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
           align-items: center;
-          justify-content: space-around;
-          padding: 0 16px;
+          justify-items: center;
+          padding: 0 8px;
           z-index: 1000;
           box-shadow: 0 8px 32px rgba(0,0,0,0.6);
           backdrop-filter: blur(8px);
@@ -54,8 +55,9 @@ export default function BottomNav() {
           justify-content: center;
           cursor: pointer;
           color: #A68A64;
-          border-radius: 24px;
-          padding: 8px 16px;
+          border-radius: 20px;
+          padding: 8px 4px;
+          width: 90%;
           transition: all 0.25s ease;
           user-select: none;
           text-decoration: none;
@@ -95,12 +97,13 @@ export default function BottomNav() {
             bottom: 12px;
             width: 96%;
             height: 68px;
-            padding: 0 8px;
+            padding: 0 4px;
             border-radius: 30px;
           }
           .bottom-nav-item {
-            padding: 6px 10px;
-            border-radius: 20px;
+            padding: 6px 0px;
+            border-radius: 16px;
+            width: 95%;
           }
           .bottom-nav-label {
             font-size: 0.62rem;
