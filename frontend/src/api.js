@@ -73,11 +73,14 @@ const api = {
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
-export async function login({ name, email, city, area, avatar, password, loginMethod }) {
-  const data = await api.post('/auth/login', { name, email, city, area, avatar, password, loginMethod });
-  setToken(data.token);
-  setStoredUser(data.user);
-  return data;
+export async function login(credentials) {
+  const res = await request('POST', '/auth/login', credentials);
+  if (res.requiresRegistration) {
+    return res;
+  }
+  setToken(res.token);
+  setStoredUser(res.user);
+  return res;
 }
 
 import { auth } from './firebase';

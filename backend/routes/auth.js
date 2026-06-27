@@ -27,7 +27,16 @@ router.post('/login', async (req, res) => {
     if (loginMethod === 'google') {
       // Google Login — Passwordless
       if (!user) {
-        // Create new user for Google
+        // DO NOT create new user immediately if they haven't provided city/area
+        if (!city || !area) {
+          return res.json({
+            requiresRegistration: true,
+            email: emailLower,
+            name: name ? name.trim() : 'Google Hero'
+          });
+        }
+        
+        // Create new user for Google if city/area are provided
         const id = uuidv4();
         await db.query(`
           INSERT INTO users (id, name, email, city, area, avatar, level, xp, rank, password)

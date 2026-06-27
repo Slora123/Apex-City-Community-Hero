@@ -49,6 +49,18 @@ export default function Login() {
         avatar: 'male'
       });
 
+      if (resultBackend.requiresRegistration) {
+        setGoogleUser(user);
+        setGoogleNewAccountForm({
+          name: resultBackend.name,
+          city: '',
+          area: ''
+        });
+        setStep('details_google_new');
+        setLoading(false);
+        return;
+      }
+
       setHero({
         id: resultBackend.user.id,
         name: resultBackend.user.name,
@@ -63,23 +75,11 @@ export default function Login() {
 
       await refreshMissions?.();
 
-      // If the user's city or area is empty, they are a new user signing in for the first time.
-      // We should prompt them for their city/area to give them local missions!
-      if (!resultBackend.user.city || !resultBackend.user.area) {
-        setGoogleUser(user);
-        setGoogleNewAccountForm({
-          name: resultBackend.user.name,
-          city: '',
-          area: ''
-        });
-        setStep('details_google_new');
+      // If they already have city/area set up, go to avatar creation or dashboard
+      if (resultBackend.user.avatar && resultBackend.user.avatar !== 'male') {
+        navigate('/dashboard');
       } else {
-        // If they already have city/area set up, go to avatar creation or dashboard
-        if (resultBackend.user.avatar && resultBackend.user.avatar !== 'male') {
-          navigate('/dashboard');
-        } else {
-          navigate('/avatar-creation');
-        }
+        navigate('/avatar-creation');
       }
     } catch (err) {
       console.error('Firebase Google Auth error:', err);
