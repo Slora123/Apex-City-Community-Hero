@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Map, CheckSquare, Scroll, Trophy, Activity, MapPin, LogOut } from 'lucide-react';
+import { Home, Map, CheckSquare, Scroll, Trophy, Activity, MapPin } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api';
 
@@ -20,7 +20,6 @@ export default function BottomNav() {
     { icon: <Activity />, label: 'Impact', path: '/impact' },
     { icon: <MapPin />, label: 'Heatmap', path: '/heatmap' },
     { icon: <Trophy />, label: 'Leaderboard', path: '/leaderboard' },
-    { icon: <LogOut />, label: 'Logout', action: 'logout' },
   ];
 
   return (

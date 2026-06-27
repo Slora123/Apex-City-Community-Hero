@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
-import { Shield, Trophy, Star } from 'lucide-react';
+import { Shield, Trophy, Star, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { logout } from '../api';
 
 export default function TopNav() {
   const { hero } = useGame();
+  const navigate = useNavigate();
+  const [showLogout, setShowLogout] = useState(false);
 
   const getAvatarUrl = (avatar) => {
     if (!avatar) return '/avtar1.png';
@@ -28,7 +32,10 @@ export default function TopNav() {
       zIndex: 1000,
       boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+      <div 
+        style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', position: 'relative' }}
+        onClick={() => setShowLogout(!showLogout)}
+      >
         <img 
           src={getAvatarUrl(hero.avatar)} 
           alt="Avatar" 
@@ -40,6 +47,34 @@ export default function TopNav() {
             <Shield size={14} color="var(--primary-color)" /> Lvl {hero.level}
           </div>
         </div>
+
+        {showLogout && (
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              logout();
+              navigate('/login');
+            }}
+            style={{
+              position: 'absolute',
+              top: '60px',
+              left: '0',
+              backgroundColor: 'var(--panel-bg)',
+              border: '2px solid var(--panel-border)',
+              padding: '10px 15px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              color: 'var(--accent-color)',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+              zIndex: 2000
+            }}
+          >
+            <LogOut size={16} />
+            <span style={{ fontWeight: 'bold' }}>Logout</span>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '20px' }}>
