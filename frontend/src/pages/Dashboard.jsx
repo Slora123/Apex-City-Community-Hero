@@ -24,6 +24,8 @@ export default function Dashboard() {
 
   const xpPercent = Math.min(100, Math.round((hero.xp / 5000) * 100));
 
+  const [showLogout, setShowLogout] = useState(false);
+
   const getAvatarUrl = (avatar) => {
     if (!avatar) return '/avtar1.png';
     if (avatar === 'male' || avatar === '/avtar1.png') return '/avtar1.png';
@@ -39,14 +41,19 @@ export default function Dashboard() {
       ════════════════════════════════════════════════ */}
       <div className="home-stats-container">
         {/* User Profile Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          marginBottom: '6px',
-          paddingLeft: '4px',
-          userSelect: 'none'
-        }}>
+        <div 
+          onClick={() => setShowLogout(!showLogout)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '6px',
+            paddingLeft: '4px',
+            userSelect: 'none',
+            cursor: 'pointer',
+            position: 'relative'
+          }}
+        >
           <img
             src={getAvatarUrl(hero.avatar)}
             alt="Hero Avatar"
@@ -67,6 +74,36 @@ export default function Dashboard() {
             textShadow: '1px 1px 2px rgba(0,0,0,0.9)',
             letterSpacing: '0.5px'
           }}>{hero.name || 'Hero'}</span>
+
+          {showLogout && (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation();
+                // Import logout from API if not already imported (wait, I need to add import)
+                import('../api').then(({ logout }) => {
+                  logout();
+                  navigate('/login');
+                });
+              }}
+              style={{
+                position: 'absolute',
+                top: '40px',
+                left: '0',
+                backgroundColor: 'var(--panel-bg, #2D1B13)',
+                border: '2px solid var(--panel-border, #8B5E34)',
+                padding: '10px 15px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                color: 'var(--accent-color, #F4E8C1)',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+                zIndex: 2000
+              }}
+            >
+              <span style={{ fontWeight: 'bold' }}>Logout</span>
+            </div>
+          )}
         </div>
 
         {/* Tab 1: Hero Level (Top Bar) */}
