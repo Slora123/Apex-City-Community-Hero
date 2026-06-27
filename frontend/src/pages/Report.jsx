@@ -30,42 +30,14 @@ const NAV_ITEMS = [
 
 /* ── CLASS MAPS & DATA ───────────────────────────────────── */
 const ISSUES = [
-  {
-    id: 'cracked_road',
-    category: 'Pothole',
-    severity: 'High',
-    priority: 'Urgent',
-    location: '125 Main St',
-    mapX: 220,
-    mapY: 50,
-  },
-  {
-    id: 'water_leak',
-    category: 'Ruptured Aqueduct',
-    severity: 'Medium',
-    priority: 'Moderate',
-    location: '42 Fountain Plaza',
-    mapX: 120,
-    mapY: 30,
-  },
-  {
-    id: 'broken_light',
-    category: 'Darksome Lantern',
-    severity: 'High',
-    priority: 'Urgent',
-    location: '88 Blacksmith Lane',
-    mapX: 310,
-    mapY: 70,
-  },
-  {
-    id: 'other',
-    category: 'Mysterious Blight',
-    severity: 'Low',
-    priority: 'Low',
-    location: 'Whispering Woods Borders',
-    mapX: 180,
-    mapY: 80,
-  }
+  { id: 'cracked_road', category: '🛣️ Roads', severity: 'High', priority: 'Urgent', location: '125 Main St', mapX: 220, mapY: 50 },
+  { id: 'water_leak', category: '💧 Water', severity: 'High', priority: 'Urgent', location: '42 Fountain Plaza', mapX: 120, mapY: 30 },
+  { id: 'broken_light', category: '💡 Electricity', severity: 'High', priority: 'Urgent', location: '88 Blacksmith Lane', mapX: 310, mapY: 70 },
+  { id: 'waste', category: '🗑️ Waste Management', severity: 'High', priority: 'Urgent', location: 'East District Alley', mapX: 180, mapY: 80 },
+  { id: 'infrastructure', category: '🏗️ Public Infrastructure', severity: 'High', priority: 'Urgent', location: 'Central Bridge', mapX: 200, mapY: 100 },
+  { id: 'environment', category: '🌳 Environment', severity: 'Medium', priority: 'Moderate', location: 'City Park', mapX: 90, mapY: 150 },
+  { id: 'traffic_safety', category: '🚦 Traffic & Safety', severity: 'High', priority: 'Urgent', location: 'Main Intersection', mapX: 150, mapY: 180 },
+  { id: 'public_safety', category: '🚨 Public Safety', severity: 'Critical', priority: 'Critical', location: 'Downtown', mapX: 250, mapY: 120 }
 ];
 
 export default function Report() {
@@ -649,6 +621,7 @@ export default function Report() {
             <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
               The Guild has received your scroll. Artisans have been dispatched to investigate and repair the anomaly at the coordinates.
               <br/><br/>
+              <strong>Issue Type:</strong> {submitDetails?.category || 'Civic Anomaly'}<br/>
               <strong>Issue Severity:</strong> {submitDetails?.severity ? submitDetails.severity.charAt(0).toUpperCase() + submitDetails.severity.slice(1) : 'Medium'}<br/>
               <strong>Reporter Status:</strong> {submitDetails?.reportOrder === 1 ? '1st (First Reporter!)' : submitDetails?.reportOrder + (submitDetails?.reportOrder===2?'nd':submitDetails?.reportOrder===3?'rd':'th') + ' Reporter'}
             </p>
