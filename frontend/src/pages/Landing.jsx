@@ -41,18 +41,39 @@ export default function Landing() {
           background-position: center;
           box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
-        
-        @media (min-aspect-ratio: 16/9) {
-          .bg-cover-container {
-            width: 100vw;
-            height: 56.25vw;
+        @media (min-width: 769px) {
+          @media (min-aspect-ratio: 16/9) {
+            .bg-cover-container {
+              width: 100vw;
+              height: 56.25vw;
+            }
+          }
+          
+          @media (max-aspect-ratio: 16/9) {
+            .bg-cover-container {
+              width: 177.78vh;
+              height: 100vh;
+            }
           }
         }
-        
-        @media (max-aspect-ratio: 16/9) {
+
+        @media (max-width: 768px) {
           .bg-cover-container {
-            width: 177.78vh;
-            height: 100vh;
+            background-image: url('/landing_mobile.png');
+          }
+          
+          @media (min-aspect-ratio: 572/1024) {
+            .bg-cover-container {
+              width: 100vw;
+              height: 179.02vw;
+            }
+          }
+          
+          @media (max-aspect-ratio: 572/1024) {
+            .bg-cover-container {
+              width: 55.86vh;
+              height: 100vh;
+            }
           }
         }
       `}</style>
