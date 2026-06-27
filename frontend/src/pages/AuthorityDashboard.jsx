@@ -35,7 +35,7 @@ export default function AuthorityDashboard() {
     setErrorMsg('');
 
     try {
-      const response = await fetch('/api/authority/unlock', {
+      const response = await fetch('/api/auth/authority/unlock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
