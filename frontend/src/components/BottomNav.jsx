@@ -1,10 +1,16 @@
 import React from 'react';
-import { Home, Map, CheckSquare, Scroll, Trophy, Activity, MapPin } from 'lucide-react';
+import { Home, Map, CheckSquare, Scroll, Trophy, Activity, MapPin, LogOut } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { logout } from '../api';
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const navItems = [
     { icon: <Home />, label: 'Home', path: '/dashboard' },
@@ -14,6 +20,7 @@ export default function BottomNav() {
     { icon: <Activity />, label: 'Impact', path: '/impact' },
     { icon: <MapPin />, label: 'Heatmap', path: '/heatmap' },
     { icon: <Trophy />, label: 'Leaderboard', path: '/leaderboard' },
+    { icon: <LogOut />, label: 'Logout', action: 'logout' },
   ];
 
   return (
@@ -121,7 +128,13 @@ export default function BottomNav() {
           return (
             <div 
               key={item.label}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                if (item.action === 'logout') {
+                  handleLogout();
+                } else {
+                  navigate(item.path);
+                }
+              }}
               className={`bottom-nav-item ${isActive ? 'active' : ''}`}
             >
               <div className="bottom-nav-icon">
