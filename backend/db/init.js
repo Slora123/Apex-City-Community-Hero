@@ -40,9 +40,10 @@ async function initDB() {
     const res = await pool.query('SELECT COUNT(*) as c FROM issues');
     const issueCount = parseInt(res.rows[0].c, 10);
     
-    if (issueCount === 0) {
-      await seedDemoData();
-    }
+    // We are no longer seeding demo data automatically
+    // if (issueCount === 0) {
+    //   await seedDemoData();
+    // }
   } catch (err) {
     console.error('❌ Database initialization error:', err);
   }
