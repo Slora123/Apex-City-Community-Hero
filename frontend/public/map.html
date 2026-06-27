@@ -1163,7 +1163,82 @@
         // (purely decorative, low priority — skip detailed collision)
       }
 
-      // // scatterRoadIssues(14); // Removed to keep the roads clean and free of unwanted objects // Removed to keep the roads clean and free of unwanted objects
+      // ============================================================
+      // DYNAMIC REAL-TIME ISSUES FROM BACKEND (AI Verification)
+      // ============================================================
+      async function fetchAndRenderIssues() {
+        try {
+          const res = await fetch('/api/issues');
+          if (!res.ok) throw new Error('Failed to fetch issues');
+          const data = await res.json();
+          
+          // Clear old issues
+          roadIssues.forEach(entry => {
+            scene.remove(entry.mesh);
+            if (entry.pin) scene.remove(entry.pin);
+          });
+          roadIssues.length = 0;
+
+          data.issues.forEach(issue => {
+            // Once the confidence reaches the required threshold, the issue becomes active on the map.
+            if (issue.status !== 'active') return;
+
+            let modelType = 'garbage';
+            const cat = (issue.category || '').toLowerCase();
+            const typ = (issue.type || '').toLowerCase();
+            if (cat.includes('pothole') || typ.includes('pothole')) modelType = 'brokenRoad';
+            else if (cat.includes('water') || typ.includes('water') || typ.includes('leak')) modelType = 'waterLeak';
+            else if (cat.includes('garbage') || typ.includes('garbage') || cat.includes('trash')) modelType = 'garbage';
+            else if (cat.includes('light') || typ.includes('light')) modelType = 'brokenLight';
+
+            // deterministic pseudo-random placement based on issue ID so it stays in same place
+            let seed = 0;
+            for (let i = 0; i < issue.id.length; i++) seed += issue.id.charCodeAt(i);
+            const pseudoRand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+            
+            // find a valid street tile
+            const tileIdx = Math.floor(pseudoRand() * streets.length);
+            const tile = streets[tileIdx];
+            if (!tile) return;
+            const x = tile.x + (pseudoRand() - 0.5) * tile.w * 0.7;
+            const z = tile.z + (pseudoRand() - 0.5) * tile.h * 0.7;
+            
+            const entry = spawnRoadIssue(modelType, x, z);
+            if (entry) {
+                entry.issueData = issue; // store issue data
+                
+                // Add a bouncing location pin
+                const pinGroup = new THREE.Group();
+                const pinGeo = new THREE.ConeGeometry(0.3, 0.8, 16);
+                const pinMat = new THREE.MeshToonMaterial({ color: 0xff3333 });
+                const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+                pinMesh.rotation.x = Math.PI; // point downwards
+                pinGroup.add(pinMesh);
+                
+                // Sphere on top of pin
+                const sphereGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                const sphereMesh = new THREE.Mesh(sphereGeo, pinMat);
+                sphereMesh.position.y = 0.4;
+                pinGroup.add(sphereMesh);
+                
+                pinGroup.position.set(x, 2.5, z);
+                scene.add(pinGroup);
+                entry.pin = pinGroup;
+            }
+          });
+        } catch (err) {
+          console.error('Error fetching issues:', err);
+        }
+      }
+
+      fetchAndRenderIssues();
+
+      // Listen for socket events if socket.io is available globally
+      if (window.io) {
+        const socket = io();
+        socket.on('new_issue', fetchAndRenderIssues);
+        socket.on('issue_resolved', fetchAndRenderIssues);
+      }
 
       // South entrance archway — book-ends the main avenue opposite the castle
       {
@@ -1978,6 +2053,27 @@
           const dy = e.clientY - leftClickStartY;
           // If the mouse moved very little, it's a click to move, not a drag!
           if (Math.hypot(dx, dy) < 5) {
+            
+            // Check for Pin clicks first
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            const pins = roadIssues.map(r => r.pin).filter(Boolean);
+            if (pins.length > 0) {
+              const intersects = raycaster.intersectObjects(pins, true);
+              if (intersects.length > 0) {
+                let clickedPin = intersects[0].object;
+                while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
+                const issueEntry = roadIssues.find(r => r.pin === clickedPin);
+                if (issueEntry && issueEntry.issueData) {
+                  window.parent.postMessage({ type: 'OPEN_ISSUE', issueId: issueEntry.issueData.id }, '*');
+                  return; // Stop processing, don't walk
+                }
+              }
+            }
+
             const p = groundIntersect(e.clientX, e.clientY);
             if (p && withinCityBounds(p)) {
               resolveAgainstBuildings(p);
@@ -2222,6 +2318,11 @@
             issue.mesh.userData.light.intensity = 0.1 + (Math.sin(t * 9 + i * 3.1) * 0.5 + 0.5) * 0.7;
           } else if (issue.type === 'waterLeak' && issue.mesh.userData.drip) {
             issue.mesh.userData.drip.position.y = 0.42 + Math.sin(t * 4 + i) * 0.04;
+          }
+          
+          if (issue.pin) {
+            issue.pin.position.y = 2.5 + Math.sin(t * 3 + i) * 0.2;
+            issue.pin.rotation.y += dt;
           }
         }
 

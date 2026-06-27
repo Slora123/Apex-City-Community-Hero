@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import BottomNav from '../components/BottomNav';
 import {
@@ -168,6 +168,7 @@ export const BrokenLightIllustration = ({ repaired = false }) => (
 
 export default function Missions() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { addXp, missions, updateMissionStatus } = useGame();
 
   // State Machine: 'list' | 'details' | 'capture_before' | 'capture_after' | 'verification' | 'success'
@@ -175,6 +176,21 @@ export default function Missions() {
   const [selectedMission, setSelectedMission] = useState(null);
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
+
+  // Auto-open mission if navigated from map
+  useEffect(() => {
+    if (location.state?.openIssueId && missions.length > 0) {
+      const issueToOpen = missions.find(m => m.issueId === location.state.openIssueId);
+      if (issueToOpen) {
+        setSelectedMission(issueToOpen);
+        setSeverity(issueToOpen.severity ? issueToOpen.severity.charAt(0).toUpperCase() + issueToOpen.severity.slice(1) : 'Medium');
+        setView('details');
+        
+        // Clear state so it doesn't re-open on refresh or back
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, missions]);
 
   // Verification results
   const [resolutionStatus, setResolutionStatus] = useState('Fully Resolved');

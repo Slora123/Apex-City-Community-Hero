@@ -183,6 +183,11 @@ router.post('/', requireAuth, (req, res) => {
 
         // Update reporter count on issue
         db.prepare('UPDATE issues SET reporter_count = reporter_count + 1 WHERE id = ?').run(issueId);
+
+        // Confidence threshold logic: AI confidence increases with multiple reports
+        if (existingIssue.status === 'pending' && reportOrder >= 2) {
+          db.prepare("UPDATE issues SET status = 'active' WHERE id = ?").run(issueId);
+        }
       } else {
         // Create new issue
         issueId = uuidv4();

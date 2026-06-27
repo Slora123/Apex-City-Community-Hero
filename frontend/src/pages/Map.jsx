@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Map, CheckSquare, Trophy, Scroll, Activity, MapPin as MapPinIcon } from 'lucide-react';
 import { useGame } from '../context/GameContext';
@@ -23,6 +23,16 @@ export default function MapPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hero } = useGame();
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'OPEN_ISSUE') {
+        navigate('/missions', { state: { openIssueId: event.data.issueId } });
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [navigate]);
 
   const avatarUrl = hero?.avatar || 'male';
   const iframeSrc = `/map.html?avatar=${encodeURIComponent(avatarUrl)}`;
