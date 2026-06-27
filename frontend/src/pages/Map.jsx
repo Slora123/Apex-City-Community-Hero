@@ -38,7 +38,7 @@ export default function MapPage() {
   const iframeSrc = `/map.html?avatar=${encodeURIComponent(avatarUrl)}`;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0A0604', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', background: '#0A0604', fontFamily: 'Inter, sans-serif' }}>
       {/* 3D Toon City Map Iframe */}
       <iframe
         src={iframeSrc}
@@ -52,43 +52,16 @@ export default function MapPage() {
       />
 
       {/* Navigation Overlay */}
-      <nav style={{
-        position: 'absolute',
-        bottom: 16,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        background: 'rgba(20, 10, 5, 0.96)',
-        border: '2px solid #7A4A22',
-        borderRadius: 9999,
-        padding: '8px 10px',
-        zIndex: 20,
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
-      }}>
+      <nav className="home-bottom-nav" role="navigation" aria-label="Main navigation">
         {NAV_ITEMS.map(({ label, path, Icon }) => {
           const active = location.pathname === path;
           return (
             <button
               key={label}
+              id={`nav-${label.toLowerCase()}`}
               onClick={() => navigate(path)}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-                padding: '8px 20px',
-                border: 'none',
-                borderRadius: 9999,
-                background: active ? 'rgba(212, 175, 55, 0.18)' : 'transparent',
-                color: active ? '#D4AF37' : '#7A6A58',
-                cursor: 'pointer',
-                fontSize: '0.7rem',
-                fontWeight: 600,
-                outline: 'none',
-                transition: 'all 0.2s ease',
-              }}
+              className={`home-nav-btn${active ? ' home-nav-btn--active' : ''}`}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon size={22} strokeWidth={active ? 2.5 : 2} />
               <span>{label}</span>
