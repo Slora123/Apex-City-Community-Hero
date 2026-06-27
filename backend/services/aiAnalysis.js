@@ -56,7 +56,7 @@ function mockAnalysis(imagePath) {
   const filename = (imagePath || '').toLowerCase();
 
   // Detect likely issue type from filename hints
-  let detected = ISSUE_PATTERNS.cracked_road; // default
+  let detected = null;
   for (const [key, pattern] of Object.entries(ISSUE_PATTERNS)) {
     if (pattern.keywords.some(kw => filename.includes(kw))) {
       detected = pattern;
@@ -74,8 +74,8 @@ function mockAnalysis(imagePath) {
   const reportCount = Math.floor(Math.random() * 8) + 1;
 
   return {
-    type: detected.type,
-    category: detected.category,
+    type: detected ? detected.type : null,
+    category: detected ? detected.category : null,
     severity,
     priority: PRIORITY_LABELS[severity],
     impact,

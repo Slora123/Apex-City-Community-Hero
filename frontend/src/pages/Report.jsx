@@ -195,8 +195,6 @@ export default function Report() {
           setIsUploaded(true);
           setIsVideo(false);
           setIsAnalyzing(false);
-          // Randomly change issue type for dynamic feel
-          setIssueIndex(Math.floor(Math.random() * ISSUES.length));
         }, 1200); // simulated analysis time
       };
       reader.readAsDataURL(file);
@@ -217,7 +215,6 @@ export default function Report() {
         setIsVideo(true);
         setSketchUrl(URL.createObjectURL(file));
         setIsAnalyzing(false);
-        setIssueIndex(Math.floor(Math.random() * ISSUES.length));
       }, 1500);
     }
   };
