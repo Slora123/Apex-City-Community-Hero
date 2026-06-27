@@ -151,12 +151,14 @@ export default function Report() {
   const [isUploaded, setIsUploaded] = useState(true); // default true to match reference immediately
   const [isVideo, setIsVideo] = useState(false);
   const [sketchUrl, setSketchUrl] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
   // UI States
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitPhase, setSubmitPhase] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState(0);
 
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -185,6 +187,7 @@ export default function Report() {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setSelectedFile(file);
       setIsAnalyzing(true);
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -208,6 +211,7 @@ export default function Report() {
   const handleVideoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setSelectedFile(file);
       setIsAnalyzing(true);
       setTimeout(() => {
         setIsUploaded(true);
@@ -219,37 +223,47 @@ export default function Report() {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     setIsSubmitting(true);
     setSubmitPhase('wax');
 
-    setTimeout(() => {
-      setSubmitPhase('stamp');
-    }, 800);
+    setTimeout(() => setSubmitPhase('stamp'), 800);
+    setTimeout(() => setSubmitPhase('falcon'), 1600);
 
-    setTimeout(() => {
-      setSubmitPhase('falcon');
-    }, 1600);
-
-    setTimeout(() => {
-      // Report issue to global state using user's real location
+    try {
       const reported = {
         title: `${currentIssue.category} Incident`,
         type: currentIssue.id,
         location: address || 'Unknown Coordinates',
         description: `Magical AI vision detected a ${currentIssue.category} with ${currentIssue.severity} severity.`,
         severity: currentIssue.severity.toLowerCase(),
+        lat: coords.lat,
+        lng: coords.lng,
+        category: currentIssue.category
       };
 
-      reportIssue(reported);
-      addXp(150); // Award 150 XP
-
+      // Run API call and animation delay in parallel
+      const apiPromise = reportIssue(reported, selectedFile);
+      const delayPromise = new Promise(resolve => setTimeout(resolve, 2800));
+      
+      const [result] = await Promise.all([apiPromise, delayPromise]);
+      
+      const points = result?.pointsAwarded || 0;
+      setEarnedPoints(points);
+      
       setIsSubmitting(false);
       setSubmitPhase('');
       setShowSuccess(true);
-    }, 2800);
+    } catch (err) {
+      console.error('Failed to submit report', err);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setSubmitPhase('');
+        alert('Failed to submit report: ' + err.message);
+      }, 2800);
+    }
   };
 
   return (
@@ -643,7 +657,7 @@ export default function Report() {
               gap: '12px',
               boxSizing: 'border-box'
             }}>
-              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2E6B2A' }}>+0 XP</span>
+              <span style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2E6B2A' }}>+{earnedPoints} XP</span>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#3C2D24', textTransform: 'uppercase' }}>Civic Bounty Awarded</div>
                 <div style={{ fontSize: '0.75rem', color: '#5C4A38' }}>Ledger updated with experiences!</div>
