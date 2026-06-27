@@ -3,16 +3,7 @@ import { useGame } from '../context/GameContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Trophy, Home, Map, CheckSquare, User, Shield, Scroll, Activity, MapPin } from 'lucide-react';
 
-/* ── Nav items matching the reference ──────────────────────── */
-const NAV_ITEMS = [
-  { Icon: Home,         label: 'Home',        path: '/dashboard' },
-  { Icon: Map,          label: 'Map',         path: '/map' },
-  { Icon: CheckSquare,  label: 'Mission',     path: '/missions' },
-  { Icon: Scroll,       label: 'Report',      path: '/report' },
-  { Icon: Activity,     label: 'Impact',      path: '/impact' },
-  { Icon: MapPin,       label: 'Heatmap',     path: '/heatmap' },
-  { Icon: Trophy,       label: 'Leaderboard', path: '/leaderboard' },
-];
+import BottomNav from '../components/BottomNav';
 
 /* ── Issue colours / statuses pulled from missions context ─── */
 function getIssueColor(status) {
@@ -151,23 +142,8 @@ export default function Dashboard() {
       {/* ════════════════════════════════════════════════
           BOTTOM NAV  (centered pill at bottom)
       ════════════════════════════════════════════════ */}
-      <nav className="home-bottom-nav" role="navigation" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ Icon, label, path }) => {
-          const active = location.pathname === path;
-          return (
-            <button
-              key={label}
-              id={`nav-${label.toLowerCase()}`}
-              onClick={() => navigate(path)}
-              className={`home-nav-btn${active ? ' home-nav-btn--active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Global Bottom Navigation Bar */}
+      <BottomNav />
 
     </div>
   );

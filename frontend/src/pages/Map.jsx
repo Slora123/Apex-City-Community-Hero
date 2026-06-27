@@ -3,18 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Map, CheckSquare, Trophy, Scroll, Activity, MapPin as MapPinIcon } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 
-/* ─────────────────────────────────────────────────────────────
-   NAV CONFIG
-───────────────────────────────────────────────────────────── */
-const NAV_ITEMS = [
-  { label: 'Home',    path: '/dashboard',  Icon: Home },
-  { label: 'Map',     path: '/map',        Icon: Map },
-  { label: 'Mission', path: '/missions',   Icon: CheckSquare },
-  { label: 'Report',  path: '/report',     Icon: Scroll },
-  { label: 'Impact',  path: '/impact',     Icon: Activity },
-  { label: 'Heatmap', path: '/heatmap',    Icon: MapPinIcon },
-  { label: 'Leaderboard', path: '/leaderboard', Icon: Trophy },
-];
+import BottomNav from '../components/BottomNav';
 
 /* ─────────────────────────────────────────────────────────────
    MAIN PAGE
@@ -51,24 +40,8 @@ export default function MapPage() {
         title="Cobblestone — A Toon City Walk"
       />
 
-      {/* Navigation Overlay */}
-      <nav className="home-bottom-nav" role="navigation" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ label, path, Icon }) => {
-          const active = location.pathname === path;
-          return (
-            <button
-              key={label}
-              id={`nav-${label.toLowerCase()}`}
-              onClick={() => navigate(path)}
-              className={`home-nav-btn${active ? ' home-nav-btn--active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Global Bottom Navigation Bar */}
+      <BottomNav />
     </div>
   );
 }

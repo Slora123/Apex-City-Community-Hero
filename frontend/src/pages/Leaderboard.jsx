@@ -190,15 +190,7 @@ const BASE_LEADERBOARD = [
   { name: 'Page Bran', level: 1, xp: 450, avatar: '🍂', rankName: 'Page Apprentice' }
 ];
 
-const NAV_ITEMS = [
-  { Icon: Home,         label: 'Home',        path: '/dashboard' },
-  { Icon: Map,          label: 'Map',         path: '/map' },
-  { Icon: CheckSquare,  label: 'Mission',     path: '/missions' },
-  { Icon: Scroll,       label: 'Report',      path: '/report' },
-  { Icon: Activity,     label: 'Impact',      path: '/impact' },
-  { Icon: MapPin,       label: 'Heatmap',     path: '/heatmap' },
-  { Icon: Trophy,       label: 'Leaderboard', path: '/leaderboard' },
-];
+import BottomNav from '../components/BottomNav';
 
 export default function Leaderboard() {
   const navigate = useNavigate();
@@ -819,23 +811,7 @@ export default function Leaderboard() {
       )}
 
       {/* ── BOTTOM NAVIGATION PILL ────────────────────────────────── */}
-      <nav className="home-bottom-nav" role="navigation" aria-label="Main navigation">
-        {NAV_ITEMS.map(({ Icon, label, path }) => {
-          const active = location.pathname === path;
-          return (
-            <button
-              key={label}
-              id={`nav-${label.toLowerCase()}`}
-              onClick={() => navigate(path)}
-              className={`home-nav-btn${active ? ' home-nav-btn--active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <BottomNav />
 
     </div>
   );
