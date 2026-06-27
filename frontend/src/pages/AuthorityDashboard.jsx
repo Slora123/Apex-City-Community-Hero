@@ -35,7 +35,8 @@ export default function AuthorityDashboard() {
     setErrorMsg('');
 
     try {
-      const response = await fetch('/api/auth/authority/unlock', {
+      const baseUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${baseUrl}/auth/authority/unlock`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
