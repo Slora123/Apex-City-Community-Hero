@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Trophy, Home, Map, CheckSquare, User, Shield, Scroll, Activity, MapPin } from 'lucide-react';
