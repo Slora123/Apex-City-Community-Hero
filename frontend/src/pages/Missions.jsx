@@ -709,6 +709,26 @@ export default function Missions() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', fontWeight: 600, padding: '0 4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                <span>Problem Solving Reward</span>
+                <span style={{ color: '#2E6B2A', fontWeight: 'bold' }}>
+                  +{(() => {
+                    const typeKey = selectedMission.type || 'other';
+                    const s = (severity || 'Medium').toLowerCase();
+                    const tier = (s === 'critical' || s === 'high') ? 'major' : (s === 'medium' || s === 'moderate') ? 'medium' : 'small';
+                    const rewards = {
+                      waste: { small: 50, medium: 75, major: 100 },
+                      cracked_road: { small: 100, medium: 150, major: 200 },
+                      water_leak: { small: 75, medium: 100, major: 150 },
+                      broken_light: { small: 50, medium: 75, major: 100 },
+                      infrastructure: { small: 100, medium: 175, major: 250 },
+                      other: { small: 25, medium: 50, major: 75 }
+                    };
+                    const table = rewards[typeKey] || rewards.other;
+                    return table[tier] || table.medium;
+                  })()} XP
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                 <span>Original upload image</span>
                 <span style={{ color: '#8B5E34', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Compass size={15} />
