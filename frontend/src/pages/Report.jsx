@@ -677,7 +677,13 @@ export default function Report() {
 
             <div style={{ display: 'flex', gap: '10px', width: '100%', marginTop: '10px' }}>
               <button
-                onClick={() => setShowSuccess(false)}
+                onClick={() => {
+                  setShowSuccess(false);
+                  setSelectedFile(null);
+                  setSketchUrl(null);
+                  setIsUploaded(false);
+                  setIsVideo(false);
+                }}
                 className="medieval-font"
                 style={{
                   flex: 1,

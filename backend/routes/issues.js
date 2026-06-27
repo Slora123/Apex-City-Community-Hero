@@ -183,6 +183,13 @@ router.post('/', requireAuth, (req, res) => {
       if (existingIssue) {
         // Add as co-reporter to existing issue
         issueId = existingIssue.id;
+        
+        // Prevent the exact same user from reporting the same issue twice
+        const dupCheck = await db.query('SELECT 1 FROM reports WHERE issue_id = $1 AND reporter_id = $2', [issueId, req.userId]);
+        if (dupCheck.rows.length > 0) {
+          return res.status(409).json({ error: 'You have already reported this anomaly at this location.' });
+        }
+
         const countRes = await db.query('SELECT COUNT(*) as c FROM reports WHERE issue_id = $1', [issueId]);
         const existingReportCount = parseInt(countRes.rows[0].c, 10);
         reportOrder = existingReportCount + 1;
