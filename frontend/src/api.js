@@ -55,6 +55,10 @@ async function request(method, path, body = null, isFormData = false) {
   const data = await res.json();
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken();
+      window.location.href = '/login';
+    }
     throw new Error(data.error || `Request failed: ${res.status}`);
   }
   return data;
