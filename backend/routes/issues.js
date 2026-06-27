@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db/init');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
@@ -161,7 +162,8 @@ router.post('/', requireAuth, (req, res) => {
         address = '',
         description = '',
         severity,
-        category
+        category,
+        testing
       } = req.body;
 
       if (!title) {
@@ -175,6 +177,11 @@ router.post('/', requireAuth, (req, res) => {
         photoPath = `issues/${req.file.filename}`;
         try {
           aiAnalysis = await analyseImage(req.file.path);
+          if (aiAnalysis.isValid === false) {
+             // Delete the uploaded file if it's invalid
+             fs.unlink(req.file.path, () => {});
+             return res.status(400).json({ error: 'Image does not appear to contain a valid civic issue. Please upload a clear photo of the problem.' });
+          }
         } catch (err) {
           console.warn('AI analysis failed:', err.message);
         }
@@ -211,18 +218,21 @@ router.post('/', requireAuth, (req, res) => {
         await db.query('UPDATE issues SET reporter_count = reporter_count + 1 WHERE id = $1', [issueId]);
 
         // Confidence threshold logic: AI confidence increases with multiple reports
-        if (existingIssue.status === 'pending' && reportOrder >= 2) {
+        const requiredReports = testing === 'true' ? 1 : 3;
+        if (existingIssue.status === 'pending' && reportOrder >= requiredReports) {
           await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [issueId]);
+          await db.query("UPDATE missions SET status = 'Active' WHERE issue_id = $1", [issueId]);
         }
       } else {
         // Create new issue
         issueId = uuidv4();
         isNew = true;
         reportOrder = 1;
+        const initialStatus = testing === 'true' ? 'active' : 'pending';
 
         await db.query(`
           INSERT INTO issues (id, title, type, category, severity, priority, lat, lng, address, status, reporter_id, reporter_count, photo_path, description, ai_analysis)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, 1, $11, $12, $13)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $13, $14)
         `, [
           issueId,
           title,
@@ -233,6 +243,7 @@ router.post('/', requireAuth, (req, res) => {
           lat ? parseFloat(lat) : 0,
           lng ? parseFloat(lng) : 0,
           address,
+          initialStatus,
           req.userId,
           photoPath,
           description,
@@ -241,9 +252,10 @@ router.post('/', requireAuth, (req, res) => {
 
         // Create a mission for this issue
         const missionId = uuidv4();
+        const initialMissionStatus = testing === 'true' ? 'Active' : 'Pending Verification';
         await db.query(`
-          INSERT INTO missions (id, issue_id, status) VALUES ($1, $2, 'available')
-        `, [missionId, issueId]);
+          INSERT INTO missions (id, issue_id, status) VALUES ($1, $2, $3)
+        `, [missionId, issueId, initialMissionStatus]);
       }
 
       // Record the FIFO report entry
@@ -273,7 +285,12 @@ router.post('/', requireAuth, (req, res) => {
       // Notify nearby users via Socket.io
       const reporterRes = await db.query('SELECT * FROM users WHERE id = $1', [req.userId]);
       const reporter = reporterRes.rows[0];
-      notifications.notifyNewIssue(issue, reporter);
+      
+      if (isNew && issue.status === 'pending') {
+        notifications.notifyConfirmIssue(issue);
+      } else {
+        notifications.notifyNewIssue(issue, reporter);
+      }
 
       res.status(isNew ? 201 : 200).json({
         success: true,

@@ -53,6 +53,8 @@ export default function Report() {
   const [address, setAddress] = useState('');
   const [coords, setCoords] = useState({ lat: 40.7128, lng: -74.0060 }); // Default NYC fallback
   const [hasLocation, setHasLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState('Locating...');
+  const [testingMode, setTestingMode] = useState(false);
 
   // Ask for geolocation and reverse geocode when page starts, with IP fallback
   useEffect(() => {
@@ -152,7 +154,10 @@ export default function Report() {
   };
 
   const handleUploadClick = () => {
-    if (fileInputRef.current) fileInputRef.current.click();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = null; // Clear to allow selecting the same file again
+      fileInputRef.current.click();
+    }
   };
 
   const handleFileChange = (e) => {
@@ -174,7 +179,10 @@ export default function Report() {
   };
 
   const handleVideoClick = () => {
-    if (videoInputRef.current) videoInputRef.current.click();
+    if (videoInputRef.current) {
+      videoInputRef.current.value = null; // Clear to allow selecting the same file again
+      videoInputRef.current.click();
+    }
   };
 
   const handleVideoChange = (e) => {
@@ -205,7 +213,7 @@ export default function Report() {
     setTimeout(() => setSubmitPhase('stamp'), 800);
     setTimeout(() => setSubmitPhase('falcon'), 1600);
 
-    try {
+      try {
       const reported = {
         title: `${currentIssue.category} Incident`,
         type: currentIssue.id,
@@ -214,7 +222,8 @@ export default function Report() {
         severity: currentIssue.severity.toLowerCase(),
         lat: coords.lat,
         lng: coords.lng,
-        category: currentIssue.category
+        category: currentIssue.category,
+        testing: testingMode.toString()
       };
 
       // Run API call and animation delay in parallel
@@ -490,6 +499,20 @@ export default function Report() {
             }
             style={{ border: 'none', filter: 'sepia(0.2) hue-rotate(5deg) contrast(1.05)' }}
           />
+        </div>
+
+        {/* Demo Checkbox */}
+        <div style={{ padding: '0 8px 16px 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input 
+            type="checkbox" 
+            id="testingMode" 
+            checked={testingMode} 
+            onChange={(e) => setTestingMode(e.target.checked)} 
+            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+          />
+          <label htmlFor="testingMode" className="medieval-font" style={{ color: '#D4AF37', cursor: 'pointer', fontSize: '0.9rem' }}>
+            [Demo] Bypass 3-report threshold
+          </label>
         </div>
 
         {/* Bottom Roller / Submit Button */}

@@ -16,7 +16,7 @@ const notifications = require('../services/notifications');
  */
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    const { status = 'available', lat, lng, radius = 10000 } = req.query;
+    const { status = 'Active', lat, lng, radius = 10000, testing } = req.query;
 
     let userCity = null;
     if (req.userId) {
@@ -45,6 +45,12 @@ router.get('/', optionalAuth, async (req, res) => {
       query += ` AND m.status = $${params.length}`;
     }
 
+    // Exclude own reports unless testing mode
+    if (req.userId && testing !== 'true') {
+      params.push(req.userId);
+      query += ` AND i.reporter_id != $${params.length}`;
+    }
+
     if (userCity) {
       params.push(userCity);
       query += ` AND (reporter.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`;
@@ -69,13 +75,18 @@ router.get('/', optionalAuth, async (req, res) => {
       missions.sort((a, b) => (a.distance || 999) - (b.distance || 999));
     }
 
-    const enriched = missions.map(m => ({
-      ...m,
-      aiAnalysis: m.ai_analysis ? JSON.parse(m.ai_analysis) : {},
-      photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
-      beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
-      afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null
-    }));
+    const enriched = missions.map(m => {
+      const aiAnalysis = m.ai_analysis ? JSON.parse(m.ai_analysis) : {};
+      // Override estimatedReward with deterministic value
+      aiAnalysis.estimatedReward = calculateSolveReward(m.category, m.severity, 'resolved');
+      return {
+        ...m,
+        aiAnalysis,
+        photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
+        beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
+        afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null
+      };
+    });
 
     res.json({ missions: enriched, total: enriched.length });
   } catch (err) {
@@ -102,19 +113,24 @@ router.get('/:id', optionalAuth, async (req, res) => {
       WHERE m.id = $1
     `, [req.params.id]);
 
-    const mission = missionRes.rows[0];
+    const m = missionRes.rows[0];
 
-    if (!mission) {
+    if (!m) {
       return res.status(404).json({ error: 'Mission not found' });
     }
 
-    res.json({
-      ...mission,
-      aiAnalysis: mission.ai_analysis ? JSON.parse(mission.ai_analysis) : {},
-      photoUrl: mission.photo_path ? `/uploads/${mission.photo_path}` : null,
-      beforePhotoUrl: mission.before_photo ? `/uploads/${mission.before_photo}` : null,
-      afterPhotoUrl: mission.after_photo ? `/uploads/${mission.after_photo}` : null
-    });
+    const aiAnalysis = m.ai_analysis ? JSON.parse(m.ai_analysis) : {};
+    aiAnalysis.estimatedReward = calculateSolveReward(m.category, m.severity, 'resolved');
+    
+    const enriched = {
+      ...m,
+      aiAnalysis,
+      photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
+      beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
+      afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null
+    };
+
+    res.json(enriched);
   } catch (err) {
     console.error('Get mission error:', err);
     res.status(500).json({ error: 'Could not fetch mission' });
@@ -133,18 +149,18 @@ router.post('/:id/accept', requireAuth, async (req, res) => {
     if (!mission) {
       return res.status(404).json({ error: 'Mission not found' });
     }
-    if (mission.status !== 'available') {
+    if (mission.status !== 'Active') {
       return res.status(409).json({ error: 'Mission is no longer available' });
     }
 
     await db.query(`
       UPDATE missions
-      SET status = 'active', assignee_id = $1, accepted_at = CURRENT_TIMESTAMP
+      SET status = 'Accepted', assignee_id = $1, accepted_at = CURRENT_TIMESTAMP
       WHERE id = $2
     `, [req.userId, req.params.id]);
 
-    // Update issue status to active
-    await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [mission.issue_id]);
+    // Update issue status to reflect it's being worked on
+    await db.query("UPDATE issues SET status = 'in_progress' WHERE id = $1", [mission.issue_id]);
 
     res.json({ success: true, missionId: mission.id, message: 'Mission accepted! Navigate to the location.' });
   } catch (err) {
@@ -173,7 +189,11 @@ router.post('/:id/before-photo', requireAuth, (req, res) => {
       if (!req.file) return res.status(400).json({ error: 'Photo is required' });
 
       const photoPath = `missions/${req.file.filename}`;
-      await db.query('UPDATE missions SET before_photo = $1 WHERE id = $2', [photoPath, req.params.id]);
+      await db.query(`
+        UPDATE missions 
+        SET before_photo = $1, status = 'In Progress' 
+        WHERE id = $2
+      `, [photoPath, req.params.id]);
 
       res.json({
         success: true,
@@ -233,8 +253,14 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
         };
       }
 
-      // Update issue resolution photo
+      let nextStatus = 'Awaiting Community Verification';
+      if (comparison.verdict === 'Not Resolved' || comparison.verdict === 'Invalid') {
+        nextStatus = 'Rejected';
+      }
+
+      // Update issue resolution photo and mission status
       await db.query('UPDATE issues SET resolution_photo = $1 WHERE id = $2', [afterPath, mission.issue_id]);
+      await db.query('UPDATE missions SET after_photo = $1, status = $2 WHERE id = $3', [afterPath, nextStatus, req.params.id]);
 
       // Notify community for verification
       const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [mission.issue_id]);

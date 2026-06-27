@@ -74,26 +74,34 @@ export const GameProvider = ({ children }) => {
   }, []);
 
   // ── Fetch missions from backend ────────────────────────────────────────
-  const refreshMissions = useCallback(async () => {
+  const refreshMissions = useCallback(async (lat, lng) => {
     try {
-      const data = await getMissions({ status: 'all' });
+      const params = { status: 'all' };
+      if (lat != null && lng != null) {
+        params.lat = lat;
+        params.lng = lng;
+        params.radius = 5000; // 5km radius
+      }
+      const data = await getMissions(params);
       if (data && data.missions) {
         const mapped = data.missions.map(m => ({
           id: m.id,
           title: m.issue_title || m.title || 'Unknown Mission',
           type: m.issue_type || m.type || 'other',
-          status: m.status === 'completed' ? 'solved' : m.status === 'active' ? 'pending' : 'available',
+          status: m.status, // exact backend state
           location: m.address || 'Unknown Location',
           description: m.description || '',
           severity: m.severity || 'medium',
           category: m.category || '',
+          aiAnalysis: m.aiAnalysis || {},
           lat: m.issue_lat,
           lng: m.issue_lng,
           distance: m.distance,
           beforePhotoUrl: m.beforePhotoUrl,
           afterPhotoUrl: m.afterPhotoUrl,
           issueId: m.issue_id,
-          backendId: m.id
+          backendId: m.id,
+          assigneeId: m.assignee_id
         }));
         setMissions(mapped);
         setIsBackendOnline(true);
@@ -174,9 +182,6 @@ export const GameProvider = ({ children }) => {
   const reportIssue = async (newIssue, photoFile = null) => {
     if (!getToken()) {
       throw new Error('Player is not authenticated. Please log in.');
-    }
-    if (!isBackendOnline) {
-      throw new Error('Municipal server is currently offline. Unable to submit report.');
     }
 
     try {

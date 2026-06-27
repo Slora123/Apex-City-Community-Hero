@@ -167,8 +167,10 @@ function mockAnalysis(imagePath, estimatedReports = null) {
   
   const estimatedReward = calculateSolveReward(detected ? detected.category : 'other', severity, 'Fully Resolved');
   const recommendedAuthority = getRecommendedAuthority(detected ? detected.category : 'other');
+  const isAuthority = severity === 'Critical' || severity === 'High';
 
   return {
+    isValid: true,
     type: detected ? detected.type : null,
     category: detected ? detected.category : null,
     severity,
@@ -183,7 +185,9 @@ function mockAnalysis(imagePath, estimatedReports = null) {
     analysedAt: new Date().toISOString(),
     estimatedReward,
     recommendedAuthority,
-    model: 'mock',
+    handler: isAuthority ? 'Authority' : (Math.random() > 0.8 ? 'Hybrid' : 'Community'),
+    department: isAuthority ? recommendedAuthority : 'Local Community',
+    communityCanHelp: !isAuthority,
     missionTitle: `Repair ${detected.type}`,
     missionDescription: `A ${severity.toLowerCase()} severity ${detected.type.toLowerCase()} was reported affecting ${impact.toLowerCase()}.`,
     estimatedTime: severity === 'Critical' ? '2-4 hours' : '1-2 days',
@@ -222,36 +226,24 @@ async function geminiAnalysis(imagePath, estimatedReports = null) {
 
   const prompt = `You are an AI assistant for a civic reporting platform called Apex City (tagline/description: Community Hero).
 Analyse this image of a reported civic issue and return ONLY a JSON object with these exact fields.
-Force your choice for "type" to ONLY one of these options:
-- Pothole
-- Water Leakage
-- Damaged Streetlight
-- Waste Management
-- Infrastructure Damage
-- Broken Traffic Signal
-- Open Manhole
-- Blocked Drain
-- Flooded Road
-- Fallen Tree
-- Damaged Footpath
-- Illegal Waste Dumping
-- Broken Bus Stop
-- Broken Bench
-- Road Blockage
-- Other
+Do NOT restrict yourself to a hardcoded list of issues. Identify the exact civic issue accurately (e.g., "Unclean Beach", "Broken Road", "Fallen Power Line", "Peeling Posters", "Massive Pothole").
 
 {
-  "type": "<Choose ONE exact match from the list above>",
-  "category": "<machine key corresponding to the type>",
+  "isValid": <true if the image appears to contain a genuine civic issue/damage/uncleanliness, false if it is a random photo, selfie, pet, indoor scene, generic screenshot, or clear prank>,
+  "type": "<Dynamically identified issue type, e.g., Unclean Beach, Pothole, Fallen Tree>",
+  "category": "<machine_key_corresponding_to_type>",
+  "handler": "<Community | Authority | Hybrid>. 'Community' if citizens can safely fix it. 'Authority' if it requires government. 'Hybrid' if both can act (e.g. community cleans surface trash while authority fixes the pipe).",
+  "department": "<Specific government branch responsible if Authority/Hybrid, or 'Local Community' if Community>",
+  "communityCanHelp": <true if citizens can safely resolve it, false otherwise>,
   "severity": "<Low | Medium | High | Critical>",
-  "priority": "<Low Priority | Moderate | Urgent | Critical. Consider severity, impact, and estimated reports (if provided). High Severity + 15 reports = Critical.>",
+  "priority": "<Low Priority | Moderate | Urgent | Critical>",
   "urgency": "<text description of how urgent>",
   "impact": "<describe who/what is impacted>",
   "estimatedSize": "<physical size estimate>",
   "confidence": <0.0 to 1.0 (ensure it is clamped between 0.0 and 0.99)>,
   "aiProvider": "gemini",
-  "estimatedReward": <integer representing points (e.g. 50 to 250) based on severity and impact>,
-  "recommendedAuthority": "<e.g., Road Maintenance Department>",
+  "estimatedReward": <integer representing points (e.g. 50 to 250) based on severity>,
+  "recommendedAuthority": "<same as department>",
   "summary": "<Short description of the issue for display>"
 }
 
@@ -278,6 +270,11 @@ Be accurate and helpful. Return ONLY valid JSON, without any markdown code block
 
     let parsed = JSON.parse(jsonMatch[0]);
     parsed.analysedAt = new Date().toISOString();
+    
+    // Default isValid to true if not explicitly false
+    if (parsed.isValid === undefined) {
+      parsed.isValid = true;
+    }
     
     // Clamp confidence
     if (parsed.confidence != null) {
@@ -381,6 +378,8 @@ Evaluate specifically:
 
 IGNORE camera angle, lighting, shadows, weather, zoom levels, people, vehicles, and image quality differences.
 Focus strictly on whether the civic issue itself has been resolved.
+
+CRITICAL: If the images are clearly fake, completely unrelated to each other, or do not show a real civic issue being repaired, you MUST return "Not Resolved" with a 0% resolution percentage.
 
 Return ONLY this JSON:
 {

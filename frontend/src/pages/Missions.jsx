@@ -170,13 +170,23 @@ export const BrokenLightIllustration = ({ repaired = false }) => (
 export default function Missions() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { addXp, missions, updateMissionStatus } = useGame();
+  const { hero, addXp, missions, updateMissionStatus, refreshMissions } = useGame();
 
   // State Machine: 'list' | 'details' | 'capture_before' | 'capture_after' | 'verification' | 'success'
   const [view, setView] = useState('list');
   const [selectedMission, setSelectedMission] = useState(null);
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
+
+  // Fetch nearby missions once on mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => refreshMissions(pos.coords.latitude, pos.coords.longitude),
+        (err) => console.warn('Could not get location for mission filtering', err)
+      );
+    }
+  }, [refreshMissions]);
 
   // Auto-open mission if navigated from map
   useEffect(() => {
@@ -209,16 +219,50 @@ export default function Missions() {
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
 
-  // Initialize GPS connection simulation
+  // Live GPS Tracking & Distance
+  const [currentDistance, setCurrentDistance] = useState(null);
+
   useEffect(() => {
-    if (view === 'details') {
+    let watchId;
+    if (view === 'details' && selectedMission) {
       setGpsStatus('Connecting...');
-      const timer = setTimeout(() => {
+      
+      const updateDistance = (position) => {
         setGpsStatus('Connected');
-      }, 800);
-      return () => clearTimeout(timer);
+        if (selectedMission.lat && selectedMission.lng) {
+          const lat1 = position.coords.latitude;
+          const lon1 = position.coords.longitude;
+          const lat2 = selectedMission.lat;
+          const lon2 = selectedMission.lng;
+          
+          // Haversine formula
+          const R = 6371; // km
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          
+          setCurrentDistance(dist);
+        }
+      };
+
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(updateDistance, (err) => {
+          console.warn('GPS Error:', err);
+          setGpsStatus('Simulated (Offline)');
+          setCurrentDistance(selectedMission.distance);
+        }, { enableHighAccuracy: true });
+      } else {
+        setGpsStatus('Simulated (No GPS)');
+        setCurrentDistance(selectedMission.distance);
+      }
     }
-  }, [view]);
+    
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [view, selectedMission]);
 
   // Clean up camera stream when leaving camera views
   useEffect(() => {
@@ -252,14 +296,22 @@ export default function Missions() {
     setCameraStream(null);
   };
 
-  const handleOpenDetails = (mission) => {
-    setSelectedMission(mission);
-    if (mission.severity) {
-      setSeverity(mission.severity.charAt(0).toUpperCase() + mission.severity.slice(1));
-    } else {
-      setSeverity('Medium');
+  const handleOpenDetails = async (mission) => {
+    try {
+      if (mission.status === 'Active' && mission.aiAnalysis?.handler !== 'Authority') {
+        await api.acceptMission(mission.id);
+        mission.status = 'Accepted'; // Optimistic update
+      }
+      setSelectedMission(mission);
+      if (mission.severity) {
+        setSeverity(mission.severity.charAt(0).toUpperCase() + mission.severity.slice(1));
+      } else {
+        setSeverity('Medium');
+      }
+      setView('details');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to accept mission');
     }
-    setView('details');
   };
 
   const handleStartVerification = async () => {
@@ -359,6 +411,22 @@ export default function Missions() {
     updateMissionStatus(selectedMission.id, 'completed');
     setView('list');
     navigate('/map');
+  };
+
+  const handleVote = async (verdict) => {
+    try {
+      const res = await api.verifyMission(selectedMission.backendId, verdict);
+      if (res.pointsAwarded) {
+        addXp(res.pointsAwarded);
+        alert(`You earned ${res.pointsAwarded} XP for verifying!`);
+      } else {
+        alert('Vote recorded successfully.');
+      }
+      setView('list');
+      refreshMissions();
+    } catch (err) {
+      alert(err.message || 'Failed to submit vote');
+    }
   };
 
   const getIllustration = (type, repaired = false) => {
@@ -680,7 +748,7 @@ export default function Missions() {
                     {m.aiAnalysis?.missionTitle || m.title}
                   </h4>
                   <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span>Distance: {(m.distance || 2.5).toFixed(2)}mi</span>
+                    <span>Distance: {(m.distance != null ? m.distance : 2.5).toFixed(2)}mi</span>
                     <span>Severity: {m.aiAnalysis?.severity || (m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Medium')}</span>
                     {m.aiAnalysis?.recommendedAuthority && (
                       <span style={{ fontSize: '0.75rem', color: '#8B5E34' }}>Authority: {m.aiAnalysis.recommendedAuthority}</span>
@@ -694,10 +762,10 @@ export default function Missions() {
 
                 <button
                   onClick={() => handleOpenDetails(m)}
-                  className="medieval-btn-green"
+                  className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
                   style={{ flexShrink: 0 }}
                 >
-                  Accept
+                  {m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept'}
                 </button>
               </div>
             ))}
@@ -754,9 +822,34 @@ export default function Missions() {
               {selectedMission.title.toUpperCase()}
             </h3>
 
-            <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px' }}>
-              {getIllustration(selectedMission.type, false)}
-            </div>
+            {selectedMission.status === 'Awaiting Community Verification' ? (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033' }}>
+                  <div style={{ background: '#5C4033', color: '#F4E8C1', textAlign: 'center', fontSize: '0.7rem', padding: '2px 0' }}>BEFORE</div>
+                  {selectedMission.beforePhotoUrl ? (
+                    <img src={selectedMission.beforePhotoUrl} alt="Before" style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: 'calc(100% - 18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0d6b8' }}>
+                      <Camera size={24} color="#8B5E34" />
+                    </div>
+                  )}
+                </div>
+                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033' }}>
+                  <div style={{ background: '#5C4033', color: '#F4E8C1', textAlign: 'center', fontSize: '0.7rem', padding: '2px 0' }}>AFTER</div>
+                  {selectedMission.afterPhotoUrl ? (
+                    <img src={selectedMission.afterPhotoUrl} alt="After" style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: 'calc(100% - 18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0d6b8' }}>
+                      <Camera size={24} color="#8B5E34" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px' }}>
+                {getIllustration(selectedMission.type, selectedMission.status === 'Resolved')}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', fontWeight: 600, padding: '0 4px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
@@ -852,32 +945,63 @@ export default function Missions() {
             borderRadius: '0 0 10px 10px',
             borderTop: '3.5px solid #5C4033',
             display: 'flex',
+            flexDirection: 'column',
             gap: '10px'
           }}>
-            <button
-              onClick={() => navigate('/map')}
-              className="medieval-btn-brown"
-              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-            >
-              <Navigation size={15} />
-              <span>Navigate</span>
-            </button>
-            <button
-              onClick={handleStartVerification}
-              className="medieval-btn-green"
-              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-            >
-              <Check size={15} />
-              <span>Verify</span>
-            </button>
-            <button
-              onClick={handleStartVerification}
-              className="medieval-btn-green"
-              style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-            >
-              <Shield size={15} />
-              <span>Solve</span>
-            </button>
+            {selectedMission?.status === 'Awaiting Community Verification' ? (
+              hero?.id === selectedMission.assigneeId ? (
+                <div style={{ textAlign: 'center', color: '#D4AF37', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                  Awaiting community votes on your work...
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ textAlign: 'center', color: '#F4E8C1', fontSize: '0.85rem', marginBottom: '4px' }}>
+                    Verify this repair to earn XP!
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleVote('Fully Resolved')} className="medieval-btn-green" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
+                      ✅ Resolved
+                    </button>
+                    <button onClick={() => handleVote('Partially Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
+                      ⚠ Partial
+                    </button>
+                    <button onClick={() => handleVote('Not Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem', background: 'linear-gradient(to bottom, #8C2A2A, #5A1212)' }}>
+                      ❌ Not Resolved
+                    </button>
+                  </div>
+                </div>
+              )
+            ) : (
+              <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                <button
+                  onClick={() => navigate('/map')}
+                  className="medieval-btn-brown"
+                  style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Navigation size={15} />
+                  <span>Navigate</span>
+                </button>
+                {selectedMission?.aiAnalysis?.handler === 'Authority' ? (
+                  <div style={{ flex: 1, textAlign: 'center', color: '#D4AF37', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <span>Reported to {selectedMission.aiAnalysis.department}</span>
+                    <span style={{ fontSize: '0.7rem', color: '#B3A387' }}>Awaiting Municipal Action</span>
+                  </div>
+                ) : currentDistance != null && currentDistance > 0.05 ? (
+                  <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleStartVerification}
+                    className="medieval-btn-green"
+                    style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Shield size={15} />
+                    <span>Solve</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

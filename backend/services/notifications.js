@@ -28,6 +28,26 @@ function notifyNewIssue(issue, reporter) {
 }
 
 /**
+ * Emit issue confirmation request to nearby users (Step 2 of workflow)
+ */
+function notifyConfirmIssue(issue) {
+  if (!io) {
+    console.log(`[Push Notification Mock] Sending 'Confirm nearby issue' for issue ${issue.id}`);
+    return;
+  }
+  
+  // Real logic would filter sockets by geographic radius
+  io.emit('confirm_issue_needed', {
+    id: issue.id,
+    title: issue.title,
+    lat: issue.lat,
+    lng: issue.lng,
+    message: `🚨 Please confirm: A nearby "${issue.title}" was just reported! Visit the location and report it to verify.`,
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
  * Emit issue resolved notification
  */
 function notifyIssueResolved(issue, resolver) {
@@ -84,6 +104,7 @@ function notifyVerificationNeeded(issue) {
 module.exports = {
   init,
   notifyNewIssue,
+  notifyConfirmIssue,
   notifyIssueResolved,
   notifyXPAwarded,
   notifyAchievement,
