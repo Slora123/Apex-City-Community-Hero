@@ -3,7 +3,7 @@
  * All calls proxy through Vite → http://localhost:3001
  */
 
-const BASE_URL = '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // ── Token Management ─────────────────────────────────────────────────────
 
@@ -188,7 +188,7 @@ export async function getAchievements(userId) {
 // ── Health Check ──────────────────────────────────────────────────────────
 
 export async function healthCheck() {
-  const res = await fetch('/api/health');
+  const res = await fetch(`${BASE_URL}/health`);
   return res.json();
 }
 

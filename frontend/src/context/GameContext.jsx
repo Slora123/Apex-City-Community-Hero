@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, getMissions, submitIssue, getStoredUser, getToken } from '../api';
+import { getMe, getMissions, submitIssue, getStoredUser, getToken, healthCheck } from '../api';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -108,8 +108,8 @@ export const GameProvider = ({ children }) => {
   useEffect(() => {
     const init = async () => {
       try {
-        const res = await fetch('/api/health');
-        if (res.ok) {
+        const res = await healthCheck();
+        if (res.status === 'ok') {
           setIsBackendOnline(true);
           await Promise.all([refreshHero(), refreshMissions()]);
         } else {
