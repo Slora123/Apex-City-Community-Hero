@@ -461,26 +461,17 @@ export default function Report() {
             type="button" 
             className="media-btn" 
             onClick={handleUploadClick}
-            style={selectedFile && !isVideo ? {
-              border: '3px dashed #2E6B2A',
-              borderRadius: '12px',
-              background: 'rgba(46, 107, 42, 0.12)',
-              overflow: 'hidden'
-            } : {}}
           >
+            <Camera size={56} strokeWidth={2.5} color={selectedFile && !isVideo ? "#2E6B2A" : "#4A3B32"} />
             {selectedFile && !isVideo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
-                <CheckCircle size={38} strokeWidth={2.5} color="#2E6B2A" />
-                <span style={{ fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 900, textTransform: 'uppercase' }}>Attached ✓</span>
-                <span style={{ fontSize: '0.65rem', color: '#3E2723', maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <span style={{ color: '#2E6B2A', fontWeight: 'bold', fontSize: '1.1rem' }}>Attached ✓</span>
+                <span style={{ fontSize: '0.7rem', color: '#5C4A38', maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={selectedFile.name}>
                   {selectedFile.name}
                 </span>
               </div>
             ) : (
-              <>
-                <Camera size={56} strokeWidth={2.5} color="#4A3B32" />
-                <span>Upload</span>
-              </>
+              <span>Upload</span>
             )}
           </button>
         </div>
@@ -490,26 +481,17 @@ export default function Report() {
             type="button" 
             className="media-btn" 
             onClick={handleVideoClick}
-            style={selectedFile && isVideo ? {
-              border: '3px dashed #2E6B2A',
-              borderRadius: '12px',
-              background: 'rgba(46, 107, 42, 0.12)',
-              overflow: 'hidden'
-            } : {}}
           >
+            <Video size={56} strokeWidth={2.5} color={selectedFile && isVideo ? "#2E6B2A" : "#4A3B32"} />
             {selectedFile && isVideo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
-                <CheckCircle size={38} strokeWidth={2.5} color="#2E6B2A" />
-                <span style={{ fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 900, textTransform: 'uppercase' }}>Attached ✓</span>
-                <span style={{ fontSize: '0.65rem', color: '#3E2723', maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <span style={{ color: '#2E6B2A', fontWeight: 'bold', fontSize: '1.1rem' }}>Attached ✓</span>
+                <span style={{ fontSize: '0.7rem', color: '#5C4A38', maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={selectedFile.name}>
                   {selectedFile.name}
                 </span>
               </div>
             ) : (
-              <>
-                <Video size={56} strokeWidth={2.5} color="#4A3B32" />
-                <span>Video</span>
-              </>
+              <span>Video</span>
             )}
           </button>
         </div>
