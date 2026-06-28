@@ -183,7 +183,7 @@ router.post('/', requireAuth, (req, res) => {
           for (const issue of nearbyIssuesRes.rows) {
             const dist = haversineDistance(parseFloat(lat), parseFloat(lng), issue.lat, issue.lng);
             if (dist <= radiusKm && issue.photo_path) {
-              const fullPath = path.join(__dirname, '../public/uploads', issue.photo_path);
+              const fullPath = path.join(__dirname, '../uploads', issue.photo_path);
               if (fs.existsSync(fullPath)) {
                 nearbyIssues.push({
                   id: issue.id,
@@ -224,15 +224,21 @@ router.post('/', requireAuth, (req, res) => {
 
       // Check if AI detected this as a duplicate of an existing nearby issue
       let existingIssue = null;
-      if (aiAnalysis.duplicateOf) {
+      const dupVal = aiAnalysis.duplicateOf;
+      if (dupVal && typeof dupVal === 'string' && dupVal.toLowerCase() !== 'null' && dupVal.toLowerCase() !== 'none' && dupVal.trim() !== '') {
         try {
-          const matchRes = await db.query('SELECT * FROM issues WHERE id = $1', [aiAnalysis.duplicateOf]);
+          const matchRes = await db.query('SELECT * FROM issues WHERE id = $1', [dupVal]);
           if (matchRes.rows.length > 0) {
             existingIssue = matchRes.rows[0];
           }
         } catch (err) {
           console.error('Error looking up duplicate issue:', err);
         }
+      }
+
+      // Fallback: If AI didn't find a visual duplicate (or if using mock analysis), try text-based matching
+      if (!existingIssue) {
+        existingIssue = await findNearbyDuplicateIssue(lat, lng, effectiveType, 0.2);
       }
 
       let issueId;
@@ -390,7 +396,22 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// Removed findNearbyDuplicateIssue, now using AI visual detection
+async function findNearbyDuplicateIssue(lat, lng, type, radiusKm) {
+  if (!lat || !lng) return null;
+  const issuesRes = await db.query(`
+    SELECT * FROM issues
+    WHERE type = $1 AND status NOT IN ('resolved', 'closed')
+    AND lat IS NOT NULL AND lng IS NOT NULL
+  `, [type]);
+
+  for (const issue of issuesRes.rows) {
+    const dist = haversineDistance(parseFloat(lat), parseFloat(lng), issue.lat, issue.lng);
+    if (dist <= radiusKm) {
+      return issue;
+    }
+  }
+  return null;
+}
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // km
