@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getMe, getMissions, submitIssue, getStoredUser, getToken, healthCheck, getImageUrl } from '../api';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -44,6 +44,51 @@ export const GameProvider = ({ children }) => {
   const [missions, setMissions] = useState([]);
   const [isBackendOnline, setIsBackendOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Background Music State
+  const [volume, setVolume] = useState(() => {
+    const saved = localStorage.getItem('bg_volume');
+    return saved !== null ? parseFloat(saved) : 0.3;
+  });
+  const [isMuted, setIsMuted] = useState(() => {
+    return localStorage.getItem('bg_muted') === 'true';
+  });
+
+  const audioRef = useRef(null);
+
+  // Initialize and update audio player
+  useEffect(() => {
+    const audio = new Audio('/Mesmerizing Galaxy Loop.mp3');
+    audio.loop = true;
+    audio.volume = isMuted ? 0 : volume;
+    audioRef.current = audio;
+
+    const startPlay = () => {
+      audio.play().catch((err) => {
+        console.warn('Autoplay prevented playing background music:', err.message);
+      });
+      window.removeEventListener('click', startPlay);
+      window.removeEventListener('keydown', startPlay);
+    };
+
+    window.addEventListener('click', startPlay);
+    window.addEventListener('keydown', startPlay);
+
+    return () => {
+      audio.pause();
+      window.removeEventListener('click', startPlay);
+      window.removeEventListener('keydown', startPlay);
+    };
+  }, []);
+
+  // Sync volume and mute state changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+      localStorage.setItem('bg_volume', volume.toString());
+      localStorage.setItem('bg_muted', isMuted.toString());
+    }
+  }, [volume, isMuted]);
 
   // ── Fetch real hero data from backend ──────────────────────────────────
   const refreshHero = useCallback(async () => {
@@ -231,7 +276,11 @@ export const GameProvider = ({ children }) => {
       refreshHero,
       refreshMissions,
       isBackendOnline,
-      isLoading
+      isLoading,
+      volume,
+      setVolume,
+      isMuted,
+      setIsMuted
     }}>
       {children}
     </GameContext.Provider>
