@@ -189,7 +189,15 @@ router.post('/authority/unlock', (req, res) => {
       scalarHotspot: { r: 4.5, c: 6.5 },
       senthianTop: [90, 105, 98, 112, 106, 128],
       senthianBottom: [62, 38, 42, 44, 58, 40],
-      affiliateHotspot: { r: 3.5, c: 10 }
+      affiliateHotspot: { r: 3.5, c: 10 },
+      contributorBars: [
+        { label: 'Mon', val: 45 },
+        { label: 'Tue', val: 75 },
+        { label: 'Wed', val: 55 },
+        { label: 'Thu', val: 90 },
+        { label: 'Fri', val: 120 },
+        { label: 'Sat', val: 140 }
+      ]
     },
     Virar: {
       reports: [
@@ -203,7 +211,15 @@ router.post('/authority/unlock', (req, res) => {
       scalarHotspot: { r: 2.5, c: 3.5 },
       senthianTop: [110, 85, 95, 80, 115, 90],
       senthianBottom: [45, 52, 30, 48, 35, 55],
-      affiliateHotspot: { r: 2.5, c: 7 }
+      affiliateHotspot: { r: 2.5, c: 7 },
+      contributorBars: [
+        { label: 'Mon', val: 30 },
+        { label: 'Tue', val: 50 },
+        { label: 'Wed', val: 80 },
+        { label: 'Thu', val: 65 },
+        { label: 'Fri', val: 95 },
+        { label: 'Sat', val: 110 }
+      ]
     },
     Nalasopara: {
       reports: [
@@ -217,7 +233,15 @@ router.post('/authority/unlock', (req, res) => {
       scalarHotspot: { r: 5.5, c: 7.5 },
       senthianTop: [80, 95, 120, 100, 125, 110],
       senthianBottom: [50, 40, 55, 30, 42, 48],
-      affiliateHotspot: { r: 4.5, c: 13 }
+      affiliateHotspot: { r: 4.5, c: 13 },
+      contributorBars: [
+        { label: 'Mon', val: 60 },
+        { label: 'Tue', val: 40 },
+        { label: 'Wed', val: 70 },
+        { label: 'Thu', val: 85 },
+        { label: 'Fri', val: 130 },
+        { label: 'Sat', val: 100 }
+      ]
     }
   };
   
