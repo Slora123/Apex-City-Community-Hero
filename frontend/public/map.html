@@ -1299,71 +1299,95 @@
       // ============================================================
       // DYNAMIC REAL-TIME ISSUES FROM BACKEND (AI Verification)
       // ============================================================
+      function renderIssuesList(issuesList) {
+        if (!issuesList || !Array.isArray(issuesList)) return;
+
+        // Clear old issues
+        roadIssues.forEach(entry => {
+          scene.remove(entry.mesh);
+          if (entry.pin) scene.remove(entry.pin);
+        });
+        roadIssues.length = 0;
+
+        issuesList.forEach(issue => {
+          // Once the confidence reaches the required threshold, the issue becomes active on the map.
+          if (issue.status !== 'active') return;
+
+          let modelType = 'garbage';
+          const aiCategory = issue.aiAnalysis?.category;
+          const cat = aiCategory || (issue.category || '').toLowerCase();
+          const typ = (issue.type || '').toLowerCase();
+          
+          if (cat.includes('pothole') || typ.includes('pothole') || cat.includes('cracked_road')) modelType = 'brokenRoad';
+          else if (cat.includes('water') || typ.includes('water') || cat.includes('leak') || cat.includes('flooded_road')) modelType = 'waterLeak';
+          else if (cat.includes('garbage') || typ.includes('garbage') || cat.includes('trash') || cat.includes('waste')) modelType = 'garbage';
+          else if (cat.includes('light') || typ.includes('light')) modelType = 'brokenLight';
+          else if (cat.includes('infrastructure') || cat.includes('broken_bench') || cat.includes('broken_bus_stop')) modelType = 'brokenRoad'; // fallback
+          else if (cat.includes('open_manhole') || cat.includes('blocked_drain')) modelType = 'waterLeak'; // fallback
+          else if (cat.includes('fallen_tree') || cat.includes('road_blockage') || cat.includes('traffic_signal')) modelType = 'brokenRoad'; // fallback
+
+          // deterministic pseudo-random placement based on issue ID so it stays in same place
+          let seed = 0;
+          for (let i = 0; i < issue.id.length; i++) seed += issue.id.charCodeAt(i);
+          const pseudoRand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+          
+          // find a valid street tile
+          const tileIdx = Math.floor(pseudoRand() * streets.length);
+          const tile = streets[tileIdx];
+          if (!tile) return;
+          const x = tile.x + (pseudoRand() - 0.5) * tile.w * 0.7;
+          const z = tile.z + (pseudoRand() - 0.5) * tile.h * 0.7;
+          
+          const entry = spawnRoadIssue(modelType, x, z);
+          if (entry) {
+              entry.issueData = issue; // store issue data
+              
+              // Add a bouncing location pin
+              const pinGroup = new THREE.Group();
+              const pinGeo = new THREE.ConeGeometry(0.3, 0.8, 16);
+              const pinMat = new THREE.MeshToonMaterial({ color: 0xff3333 });
+              const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+              pinMesh.rotation.x = Math.PI; // point downwards
+              pinGroup.add(pinMesh);
+              
+              // Sphere on top of pin
+              const sphereGeo = new THREE.SphereGeometry(0.3, 16, 16);
+              const sphereMesh = new THREE.Mesh(sphereGeo, pinMat);
+              sphereMesh.position.y = 0.4;
+              pinGroup.add(sphereMesh);
+              
+              pinGroup.position.set(x, 2.5, z);
+              scene.add(pinGroup);
+              entry.pin = pinGroup;
+          }
+        });
+      }
+
       async function fetchAndRenderIssues() {
+        // 1. Instantly load from localStorage if available
+        try {
+          const cached = localStorage.getItem('cached_map_issues');
+          if (cached) {
+            const data = JSON.parse(cached);
+            if (data && data.issues) {
+              renderIssuesList(data.issues);
+            }
+          }
+        } catch (err) {
+          console.warn('Could not read cached issues:', err);
+        }
+
+        // 2. Fetch fresh issues in the background
         try {
           const res = await fetch('/api/issues');
           if (!res.ok) throw new Error('Failed to fetch issues');
           const data = await res.json();
           
-          // Clear old issues
-          roadIssues.forEach(entry => {
-            scene.remove(entry.mesh);
-            if (entry.pin) scene.remove(entry.pin);
-          });
-          roadIssues.length = 0;
-
-          data.issues.forEach(issue => {
-            // Once the confidence reaches the required threshold, the issue becomes active on the map.
-            if (issue.status !== 'active') return;
-
-            let modelType = 'garbage';
-            const aiCategory = issue.aiAnalysis?.category;
-            const cat = aiCategory || (issue.category || '').toLowerCase();
-            const typ = (issue.type || '').toLowerCase();
-            
-            if (cat.includes('pothole') || typ.includes('pothole') || cat.includes('cracked_road')) modelType = 'brokenRoad';
-            else if (cat.includes('water') || typ.includes('water') || cat.includes('leak') || cat.includes('flooded_road')) modelType = 'waterLeak';
-            else if (cat.includes('garbage') || typ.includes('garbage') || cat.includes('trash') || cat.includes('waste')) modelType = 'garbage';
-            else if (cat.includes('light') || typ.includes('light')) modelType = 'brokenLight';
-            else if (cat.includes('infrastructure') || cat.includes('broken_bench') || cat.includes('broken_bus_stop')) modelType = 'brokenRoad'; // fallback
-            else if (cat.includes('open_manhole') || cat.includes('blocked_drain')) modelType = 'waterLeak'; // fallback
-            else if (cat.includes('fallen_tree') || cat.includes('road_blockage') || cat.includes('traffic_signal')) modelType = 'brokenRoad'; // fallback
-
-            // deterministic pseudo-random placement based on issue ID so it stays in same place
-            let seed = 0;
-            for (let i = 0; i < issue.id.length; i++) seed += issue.id.charCodeAt(i);
-            const pseudoRand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-            
-            // find a valid street tile
-            const tileIdx = Math.floor(pseudoRand() * streets.length);
-            const tile = streets[tileIdx];
-            if (!tile) return;
-            const x = tile.x + (pseudoRand() - 0.5) * tile.w * 0.7;
-            const z = tile.z + (pseudoRand() - 0.5) * tile.h * 0.7;
-            
-            const entry = spawnRoadIssue(modelType, x, z);
-            if (entry) {
-                entry.issueData = issue; // store issue data
-                
-                // Add a bouncing location pin
-                const pinGroup = new THREE.Group();
-                const pinGeo = new THREE.ConeGeometry(0.3, 0.8, 16);
-                const pinMat = new THREE.MeshToonMaterial({ color: 0xff3333 });
-                const pinMesh = new THREE.Mesh(pinGeo, pinMat);
-                pinMesh.rotation.x = Math.PI; // point downwards
-                pinGroup.add(pinMesh);
-                
-                // Sphere on top of pin
-                const sphereGeo = new THREE.SphereGeometry(0.3, 16, 16);
-                const sphereMesh = new THREE.Mesh(sphereGeo, pinMat);
-                sphereMesh.position.y = 0.4;
-                pinGroup.add(sphereMesh);
-                
-                pinGroup.position.set(x, 2.5, z);
-                scene.add(pinGroup);
-                entry.pin = pinGroup;
-            }
-          });
+          // Update cache
+          localStorage.setItem('cached_map_issues', JSON.stringify(data));
+          
+          // Re-render latest
+          renderIssuesList(data.issues);
         } catch (err) {
           console.error('Error fetching issues:', err);
         }
