@@ -379,17 +379,18 @@
       <div class="hint-title">⌨ PC Controls</div>
       <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — Move</div>
       <div><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> — Move</div>
-      <div><kbd>Mouse</kbd> — Look around</div>
+      <div><kbd>Left drag</kbd> — Look around</div>
+      <div><kbd>Right drag</kbd> — Look around</div>
       <div><kbd>Scroll</kbd> — Zoom (3rd person)</div>
       <div><kbd>Click</kbd> — Walk to / Pick mission</div>
-      <div><kbd>ESC</kbd> — Release mouse</div>
+      <div><kbd>ESC</kbd> — Release mouse lock</div>
     </div>
 
     <!-- Crosshair shown in pointer-lock mode -->
     <div id="crosshair"></div>
 
     <!-- Click-to-lock hint -->
-    <div id="lock-hint">Click to <span>capture mouse</span><br><small style="color:#b3a387;font-size:12px">for FPS mouse-look · ESC to release</small></div>
+    <div id="lock-hint"><span>Left-drag</span> to look around<br><small style="color:#b3a387;font-size:12px">or click to lock mouse · ESC to release</small></div>
 
     <!-- Issue Pin Popup -->
     <div id="issue-popup">
@@ -2343,6 +2344,10 @@
         if (e.button === 0) {
           leftClickStartX = e.clientX;
           leftClickStartY = e.clientY;
+          leftMouseDown = true;
+          lastMouseX = e.clientX;
+          lastMouseY = e.clientY;
+          leftClickMoved = false;
         }
         if (e.button === 2) {
           rightMouseDown = true;
@@ -2351,16 +2356,19 @@
         }
       });
       window.addEventListener('mouseup', e => {
-        if (e.button === 2) {
-          rightMouseDown = false;
-        }
+        if (e.button === 2) rightMouseDown = false;
         if (e.button === 0) {
-          // In pointer-lock mode, a click always tries click-to-move / pin (crosshair-based)
+          leftMouseDown = false;
+
+          // Don't treat as a click if the mouse dragged significantly (it was a look-drag)
+          const dragDist = Math.hypot(e.clientX - leftClickStartX, e.clientY - leftClickStartY);
+          if (dragDist >= 8) return;
+
+          // In pointer-lock mode: raycast from screen center (crosshair-based)
           if (pointerLocked) {
-            // Raycast from screen center
             const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = 0; // center
-            mouse.y = 0; // center
+            mouse.x = 0;
+            mouse.y = 0;
             raycaster.setFromCamera(mouse, camera);
 
             const pins = roadIssues.map(r => r.pin).filter(Boolean);
@@ -2371,13 +2379,12 @@
                 while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
                 const issueEntry = roadIssues.find(r => r.pin === clickedPin);
                 if (issueEntry && issueEntry.issueData) {
-                  document.exitPointerLock(); // release so popup is interactive
+                  document.exitPointerLock();
                   showIssuePopup(issueEntry.issueData);
                   return;
                 }
               }
             }
-
             const p = groundIntersect(rect.left + rect.width / 2, rect.top + rect.height / 2);
             if (p && withinCityBounds(p)) {
               resolveAgainstBuildings(p);
@@ -2388,49 +2395,51 @@
             return;
           }
 
-          // Free mouse mode: only walk if cursor didn't move much
-          const dx = e.clientX - leftClickStartX;
-          const dy = e.clientY - leftClickStartY;
-          if (Math.hypot(dx, dy) < 5) {
-            
-            // Check for Pin clicks first
-            const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            
-            const pins = roadIssues.map(r => r.pin).filter(Boolean);
-            if (pins.length > 0) {
-              const intersects = raycaster.intersectObjects(pins, true);
-              if (intersects.length > 0) {
-                let clickedPin = intersects[0].object;
-                while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
-                const issueEntry = roadIssues.find(r => r.pin === clickedPin);
-                if (issueEntry && issueEntry.issueData) {
-                  showIssuePopup(issueEntry.issueData);
-                  return; // Stop processing, don't walk
-                }
+          // Free-mouse mode: click-to-walk or click pin
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouse, camera);
+
+          const pins = roadIssues.map(r => r.pin).filter(Boolean);
+          if (pins.length > 0) {
+            const intersects = raycaster.intersectObjects(pins, true);
+            if (intersects.length > 0) {
+              let clickedPin = intersects[0].object;
+              while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
+              const issueEntry = roadIssues.find(r => r.pin === clickedPin);
+              if (issueEntry && issueEntry.issueData) {
+                showIssuePopup(issueEntry.issueData);
+                return;
               }
             }
+          }
 
-            const p = groundIntersect(e.clientX, e.clientY);
-            if (p && withinCityBounds(p)) {
-              resolveAgainstBuildings(p);
-              moveTarget.set(p.x, 0, p.z);
-              isMoving = true;
-              spawnClickMarker(p);
-            }
+          const p = groundIntersect(e.clientX, e.clientY);
+          if (p && withinCityBounds(p)) {
+            resolveAgainstBuildings(p);
+            moveTarget.set(p.x, 0, p.z);
+            isMoving = true;
+            spawnClickMarker(p);
           }
         }
       });
       window.addEventListener('mousemove', e => {
         if (pointerLocked) {
-          // Pointer Lock API gives raw delta — no coordinate clamping needed
-          const dx = e.movementX, dy = e.movementY;
-          camYaw   -= dx * 0.002;
-          camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.002));
+          // Pointer Lock API gives raw delta — perfect for FPS look
+          camYaw   -= e.movementX * 0.002;
+          camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - e.movementY * 0.002));
+        } else if (leftMouseDown) {
+          // Left-click drag to look (works WITHOUT pointer lock — most reliable fallback)
+          const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+          if (Math.abs(dx) + Math.abs(dy) > 1) {
+            camYaw   -= dx * 0.004;
+            camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.004));
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+          }
         } else if (rightMouseDown) {
-          // Fallback: right-click drag to look (existing behaviour preserved)
+          // Right-click drag to look (legacy fallback)
           const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
           camYaw   -= dx * 0.005;
           camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.004));

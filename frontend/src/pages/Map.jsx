@@ -135,6 +135,8 @@ export default function MapPage() {
         src={iframeSrc}
         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
         title="Cobblestone — A Toon City Walk"
+        allow="pointer-lock"
+        allowFullScreen
       />
 
       {/* ── Mission Accepted — GPS Arrival Gate Modal ────────── */}
