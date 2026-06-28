@@ -178,7 +178,9 @@ export default function Missions() {
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
   const [areaFilter, setAreaFilter] = useState('global'); // 'global' | 'local'
-  const [currentDistrict, setCurrentDistrict] = useState(hero.area || 'My Area');
+  const [currentDistrict, setCurrentDistrict] = useState(() => {
+    return sessionStorage.getItem('ch_current_district') || hero.area || 'My Area';
+  });
  
   // Fetch nearby missions once on mount and geocode current district
   useEffect(() => {
@@ -198,6 +200,7 @@ export default function Missions() {
                 const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
                 if (districtName) {
                   setCurrentDistrict(districtName);
+                  sessionStorage.setItem('ch_current_district', districtName);
                 }
               }
             })
@@ -845,8 +848,7 @@ export default function Missions() {
                     (m.description && m.description.toLowerCase().includes('waste'));
 
                   if (areaFilter === 'global') {
-                    // Show all issues except my issues, but still show the dirty neighbourhood one
-                    if (isMyIssue && !isDirtyNeighbourhood) return false;
+                    // Global tab shows all active quests
                     return true;
                   } else {
                     // Local view
@@ -858,6 +860,9 @@ export default function Missions() {
                     }
                     // Always show my other issues in my Local tab
                     if (isMyIssue) return true;
+
+                    // Distance-based local fallback (within 50km radius)
+                    if (m.distance !== undefined && m.distance !== null && m.distance <= 50) return true;
 
                     // Match the entire district as local (e.g. Alibag issues are local for Raigad users)
                     const userArea = currentDistrict.toLowerCase().trim();
