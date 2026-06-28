@@ -912,8 +912,8 @@ export default function Missions() {
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem', fontWeight: 600, padding: '0 4px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.9rem', fontWeight: 600, padding: '0 4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                 <span>Problem Solving Reward</span>
                 <span style={{ color: '#2E6B2A', fontWeight: 'bold' }}>
                   +{selectedMission.aiAnalysis?.estimatedReward || 0} XP
@@ -922,22 +922,26 @@ export default function Missions() {
               
               {selectedMission.aiAnalysis && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
-                    <span>Estimated Impact</span>
-                    <span>{selectedMission.aiAnalysis.impact || 'Unknown'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '8px' }}>
+                    <span style={{ color: '#8B5E34', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estimated Impact</span>
+                    <span style={{ color: '#2D1B13', fontSize: '0.85rem', fontWeight: 500, lineHeight: '1.35', textAlign: 'left' }}>
+                      {selectedMission.aiAnalysis.impact || 'Unknown'}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
-                    <span>Recommended Authority</span>
-                    <span>{selectedMission.aiAnalysis.recommendedAuthority || 'Local Council'}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px', gap: '12px' }}>
+                    <span style={{ flexShrink: 0 }}>Recommended Authority</span>
+                    <span style={{ textAlign: 'right', fontWeight: 'bold', fontSize: '0.85rem', color: '#2D1B13' }}>
+                      {selectedMission.aiAnalysis.recommendedAuthority || 'Local Council'}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                     <span>AI Confidence</span>
-                    <span style={{ color: '#2E6B2A' }}>{Math.round((selectedMission.aiAnalysis.confidence || 0.8) * 100)}%</span>
+                    <span style={{ color: '#2E6B2A', fontWeight: 'bold' }}>{Math.round((selectedMission.aiAnalysis.confidence || 0.8) * 100)}%</span>
                   </div>
                 </>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dashed rgba(45, 27, 19, 0.2)', paddingBottom: '6px' }}>
                 <span>Community Reports</span>
                 <span>{selectedMission.reporter_count || 1}</span>
               </div>
@@ -1042,7 +1046,7 @@ export default function Missions() {
                       <span>Navigate</span>
                     </button>
                   )}
-                  {currentDistance != null && currentDistance > 0.15 && !fromMapAccept && !import.meta.env.DEV ? (
+                  {currentDistance != null && currentDistance > 0.15 && !fromMapAccept ? (
                     <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
                     </div>
@@ -1054,9 +1058,6 @@ export default function Missions() {
                     >
                       <Shield size={15} />
                       <span>{selectedMission?.aiAnalysis?.handler === 'Authority' ? 'Help Anyway' : 'Solve'}</span>
-                      {import.meta.env.DEV && currentDistance > 0.15 && (
-                        <span style={{ fontSize: '0.65rem', background: '#D4AF37', color: '#000', padding: '2px 4px', borderRadius: '4px', marginLeft: '4px' }}>DEV BYPASS</span>
-                      )}
                     </button>
                   )}
                 </div>
