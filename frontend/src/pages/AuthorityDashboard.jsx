@@ -17,24 +17,41 @@ export default function AuthorityDashboard() {
   const location = useLocation();
 
   // Access state
-  const [passcode, setPasscode] = useState('');
   const [email, setEmail] = useState('');
   const [unlockedLocation, setUnlockedLocation] = useState(null);
   const [activeData, setActiveData] = useState(null); // Loaded dynamically from backend API!
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Passcode verification logic via secure POST fetch request to backend API
-  const handleVerifyPasscode = async () => {
-    const cleanInput = passcode.trim();
-    if (!cleanInput) {
-      setErrorMsg('Please enter a passcode.');
+  // Email verification logic with Geolocation fallback for hackathon testing
+  const handleVerifyPasscode = () => {
+    if (!email.trim()) {
+      setErrorMsg('Please enter an official email.');
       return;
     }
 
     setIsLoading(true);
     setErrorMsg('');
 
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          await performLogin(lat, lng);
+        },
+        async (error) => {
+          console.warn('Geolocation failed, logging in without coordinates:', error);
+          await performLogin(null, null);
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      performLogin(null, null);
+    }
+  };
+
+  const performLogin = async (lat, lng) => {
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '/api';
       const response = await fetch(`${baseUrl}/auth/authority/unlock`, {
@@ -42,7 +59,7 @@ export default function AuthorityDashboard() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email: email.trim(), passcode: cleanInput })
+        body: JSON.stringify({ email: email.trim(), lat, lng })
       });
 
       const data = await response.json();
@@ -51,7 +68,7 @@ export default function AuthorityDashboard() {
         setUnlockedLocation(data.location);
         setActiveData(data.telemetry);
       } else {
-        setErrorMsg(data.error || 'The gatekeeper frowns. That passcode is unrecognized.');
+        setErrorMsg(data.error || 'The gatekeeper frowns. Invalid email.');
       }
     } catch (err) {
       setErrorMsg('Failed to connect to the gatekeeper server. Try again.');
@@ -466,11 +483,11 @@ export default function AuthorityDashboard() {
             </h2>
             
             <p style={{ fontSize: '0.84rem', color: '#B3A387', fontWeight: 600, lineHeight: 1.5 }}>
-              Enter the municipal passcode of your district to access secure records and telemetry dashboards.
+              Enter your official municipal email to access secure records and telemetry dashboards.
             </p>
 
             {/* Input Field Container */}
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
               <input
                 type="email"
                 value={email}
@@ -478,33 +495,9 @@ export default function AuthorityDashboard() {
                   setEmail(e.target.value);
                   setErrorMsg('');
                 }}
-                disabled={isLoading}
-                placeholder="Official Email"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  background: '#F4E8C1',
-                  border: '2px solid #5A4B3D',
-                  borderRadius: '8px',
-                  color: '#2D1B13',
-                  fontFamily: "'MedievalSharp', serif",
-                  fontSize: '1.05rem',
-                  fontWeight: 'bold',
-                  textAlign: 'center',
-                  outline: 'none',
-                  boxShadow: 'inset 0 0 5px rgba(0,0,0,0.18)'
-                }}
-              />
-              <input
-                type="password"
-                value={passcode}
-                onChange={(e) => {
-                  setPasscode(e.target.value);
-                  setErrorMsg('');
-                }}
                 onKeyDown={(e) => e.key === 'Enter' && handleVerifyPasscode()}
                 disabled={isLoading}
-                placeholder="Enter Passcode"
+                placeholder="Official Email (e.g., vasai.admin@gov.in)"
                 style={{
                   width: '100%',
                   padding: '12px 16px',
@@ -520,6 +513,9 @@ export default function AuthorityDashboard() {
                   boxShadow: 'inset 0 0 5px rgba(0,0,0,0.18)'
                 }}
               />
+              <span style={{ color: '#D4AF37', fontSize: '0.78rem', fontWeight: 600, textAlign: 'center', margin: '4px 0' }}>
+                🔑 Quick access: Use <strong style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('test@gmail.com')}>test@gmail.com</strong>
+              </span>
               {errorMsg && (
                 <span style={{ color: '#B53F3F', fontSize: '0.78rem', fontWeight: 700, fontStyle: 'italic', marginTop: '2px' }}>
                   {errorMsg}

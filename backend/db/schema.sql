@@ -19,15 +19,15 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Authority Codes table (for mapping passcodes to cities)
+-- Authority Codes table (for mapping emails to cities)
 CREATE TABLE IF NOT EXISTS authority_codes (
   id TEXT PRIMARY KEY,
   city TEXT NOT NULL,
   department TEXT DEFAULT 'Municipal Corporation',
-  email TEXT NOT NULL,
-  passcode TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(email, city)
+  email TEXT UNIQUE NOT NULL,
+  lat REAL DEFAULT 0,
+  lng REAL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Issues table
