@@ -501,20 +501,6 @@ export default function Report() {
           />
         </div>
 
-        {/* Demo Checkbox */}
-        <div style={{ padding: '0 8px 16px 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input 
-            type="checkbox" 
-            id="testingMode" 
-            checked={testingMode} 
-            onChange={(e) => setTestingMode(e.target.checked)} 
-            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-          />
-          <label htmlFor="testingMode" className="medieval-font" style={{ color: '#D4AF37', cursor: 'pointer', fontSize: '0.9rem' }}>
-            [Demo] Bypass 3-report threshold
-          </label>
-        </div>
-
         {/* Bottom Roller / Submit Button */}
         <button type="button" className="scroll-submit-btn" onClick={handleSubmit}>
           SUBMIT REPORT
