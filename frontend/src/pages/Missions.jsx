@@ -1042,7 +1042,7 @@ export default function Missions() {
                       <span>Navigate</span>
                     </button>
                   )}
-                  {currentDistance != null && currentDistance > 0.15 && !fromMapAccept ? (
+                  {currentDistance != null && currentDistance > 0.15 && !fromMapAccept && !import.meta.env.DEV ? (
                     <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
                     </div>
@@ -1054,6 +1054,9 @@ export default function Missions() {
                     >
                       <Shield size={15} />
                       <span>{selectedMission?.aiAnalysis?.handler === 'Authority' ? 'Help Anyway' : 'Solve'}</span>
+                      {import.meta.env.DEV && currentDistance > 0.15 && (
+                        <span style={{ fontSize: '0.65rem', background: '#D4AF37', color: '#000', padding: '2px 4px', borderRadius: '4px', marginLeft: '4px' }}>DEV BYPASS</span>
+                      )}
                     </button>
                   )}
                 </div>
