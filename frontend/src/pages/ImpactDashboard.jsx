@@ -533,32 +533,82 @@ export default function ImpactDashboard() {
             </div>
           </div>
 
-          {/* CARD 5: WASTE SOLVED (Metric Card - Real Count) */}
-          <div className="parchment-card" style={{ justifyContent: 'center' }}>
+          {/* CARD 5: REALM RESOLUTIONS (Radial Progress Gauge + Category Breakdown) */}
+          <div className="parchment-card" style={{ justifyContent: 'flex-start' }}>
             <div className="card-header-row">
-              <h3 className="card-title">Waste Solved</h3>
+              <h3 className="card-title">Realm Resolutions</h3>
               <div className="card-icon-container">
-                <Zap size={14} strokeWidth={2.5} />
+                <Shield size={14} strokeWidth={2.5} />
               </div>
             </div>
-            <div className="card-body" style={{ flexDirection: 'column', gap: '8px' }}>
-              <svg viewBox="0 0 100 100" width="62" height="62" style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.15))' }}>
-                <g stroke="#2E6B2A" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M50,15 L78,28 C78,28 75,70 50,85 C25,70 22,28 22,28 Z" fill="#E2F0D9" stroke="#2E6B2A" strokeWidth="3" />
-                  <path d="M50,30 C58,30 64,36 64,45 C64,55 50,68 50,68 C50,68 36,55 36,45 C36,36 42,30 50,30 Z" fill="#84C375" stroke="#2E6B2A" strokeWidth="2.5" />
-                  <path d="M50,30 L50,68" strokeWidth="2.5" />
-                  <path d="M50,48 C55,42 64,48 64,48" strokeWidth="2" />
-                  <path d="M50,55 C45,49 36,55 36,55" strokeWidth="2" />
-                </g>
-              </svg>
-              <div style={{ textAlign: 'center', marginTop: '4px' }}>
-                <div className="medieval-font" style={{ fontSize: '1.45rem', fontWeight: 900, color: '#2E6B2A', textShadow: '0.5px 0.5px 0px rgba(255,255,255,0.6)' }}>
-                  {impact.wasteRemoved || 0}
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '12px', width: '100%', padding: '0 4px' }}>
+              
+              {/* Left Column: Radial Progress */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minWidth: '85px' }}>
+                <div style={{ position: 'relative', width: '76px', height: '76px' }}>
+                  <svg viewBox="0 0 100 100" width="76" height="76" style={{ transform: 'rotate(-90deg)' }}>
+                    {/* Background Track */}
+                    <circle cx="50" cy="50" r="42" stroke="#E3D5BA" strokeWidth="8" fill="none" />
+                    {/* Active Progress */}
+                    <circle 
+                      cx="50" 
+                      cy="50" 
+                      r="42" 
+                      stroke="#2E6B2A" 
+                      strokeWidth="8" 
+                      fill="none" 
+                      strokeDasharray="263.89" 
+                      strokeDashoffset={263.89 - (263.89 * Math.min(100, (overview.resolvedIssues || 0) * 10)) / 100}
+                      strokeLinecap="round" 
+                      style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+                    />
+                  </svg>
+                  {/* Centered Shield Icon */}
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Shield size={22} color="#2E6B2A" fill="#E2F0D9" strokeWidth={2.5} />
+                  </div>
                 </div>
-                <div className="medieval-font" style={{ fontSize: '0.9rem', color: '#2D1B13', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
-                  Resolved
+                <div style={{ textAlign: 'center', marginTop: '6px' }}>
+                  <span className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 900, color: '#2E6B2A', textShadow: '0.5px 0.5px 0px rgba(255,255,255,0.6)' }}>
+                    {overview.resolvedIssues || 0}/10
+                  </span>
+                  <div style={{ fontSize: '0.62rem', color: '#5A4B3D', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.2px', marginTop: '1px' }}>
+                    Weekly Goal
+                  </div>
                 </div>
               </div>
+
+              {/* Right Column: Breakdown List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1.2, width: '100%' }}>
+                {[
+                  { label: 'Garbage', val: impact.wasteRemoved || 0, color: '#38A169' },
+                  { label: 'Water Leak', val: impact.waterLeakagesFixed || 0, color: '#3182CE' },
+                  { label: 'Streetlights', val: impact.streetlightsRestored || 0, color: '#D69E2E' },
+                  { label: 'Infrastructure', val: impact.infrastructureResolved || 0, color: '#805AD5' }
+                ].map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      background: 'rgba(90, 75, 61, 0.05)', 
+                      borderRadius: '6px', 
+                      padding: '3px 8px', 
+                      border: '1px solid rgba(90, 75, 61, 0.12)' 
+                    }}
+                  >
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#5A4B3D', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', backgroundColor: item.color }} />
+                      {item.label}
+                    </span>
+                    <span className="medieval-font" style={{ fontSize: '0.78rem', fontWeight: 'bold', color: item.color }}>
+                      {item.val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
             </div>
           </div>
 
