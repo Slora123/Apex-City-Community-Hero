@@ -130,6 +130,7 @@ export default function Report() {
   const [submitPhase, setSubmitPhase] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [earnedPoints, setEarnedPoints] = useState(0);
+  const [submitError, setSubmitError] = useState('');
 
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -201,9 +202,10 @@ export default function Report() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
     
     if (!selectedFile) {
-      alert("Please upload a photo of the anomaly so our AI can verify and categorize it!");
+      setSubmitError('Please upload a photo of the anomaly so our AI can verify and categorize it!');
       return;
     }
 
@@ -213,17 +215,16 @@ export default function Report() {
     setTimeout(() => setSubmitPhase('stamp'), 800);
     setTimeout(() => setSubmitPhase('falcon'), 1600);
 
-      try {
+    try {
       const reported = {
-        title: `${currentIssue.category} Incident`,
+        title: 'Civic Issue Report',
         type: currentIssue.id,
         location: address || 'Unknown Coordinates',
-        description: `Magical AI vision detected a ${currentIssue.category} with ${currentIssue.severity} severity.`,
+        description: `Reported civic issue at ${address || 'this location'}.`,
         severity: currentIssue.severity.toLowerCase(),
         lat: coords.lat,
         lng: coords.lng,
         category: currentIssue.category,
-        testing: testingMode.toString()
       };
 
       // Run API call and animation delay in parallel
@@ -234,11 +235,15 @@ export default function Report() {
       
       const points = result?.pointsAwarded || 0;
       setEarnedPoints(points);
+
+      // Use Gemini's detected issue type as the category display name
+      const aiData = result?.issue?.aiAnalysis;
       setSubmitDetails({
-        severity: result?.issue?.severity || reported.severity,
+        severity: aiData?.severity || result?.issue?.severity || reported.severity,
         reportOrder: result?.reportOrder || 1,
-        aiAnalysis: result?.issue?.aiAnalysis,
-        category: result?.issue?.category || reported.category
+        aiAnalysis: aiData,
+        // Show Gemini's exact detected type, not the frontend hardcoded category
+        category: aiData?.type || result?.issue?.category || 'Civic Issue'
       });
       
       setIsSubmitting(false);
@@ -246,10 +251,19 @@ export default function Report() {
       setShowSuccess(true);
     } catch (err) {
       console.error('Failed to submit report', err);
+      const errorMsg = err.message || 'Failed to submit report';
       setTimeout(() => {
         setIsSubmitting(false);
         setSubmitPhase('');
-        alert('Failed to submit report: ' + err.message);
+        // Check if this is an invalid image rejection from AI
+        const isInvalidImage = errorMsg.toLowerCase().includes('valid civic issue') ||
+          errorMsg.toLowerCase().includes('does not appear') ||
+          errorMsg.toLowerCase().includes('not a civic');
+        setSubmitError(
+          isInvalidImage
+            ? '🚫 Our AI Oracle could not verify this as a civic issue. Please upload a clear photo of an actual public problem (pothole, garbage, broken streetlight, etc.).'
+            : `Could not file your petition: ${errorMsg}`
+        );
       }, 2800);
     }
   };
@@ -508,6 +522,38 @@ export default function Report() {
 
       </div>
 
+      {/* ── ERROR BANNER ─────────────────────────────────────────── */}
+      {submitError && (
+        <div style={{
+          width: '100%',
+          maxWidth: '500px',
+          background: 'rgba(181, 63, 63, 0.92)',
+          border: '2px solid #B53F3F',
+          borderRadius: '12px',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          boxSizing: 'border-box',
+          marginTop: '10px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+        }}>
+          <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontFamily: "'MedievalSharp', serif", fontWeight: 'bold', color: '#FFF', fontSize: '0.9rem', marginBottom: '4px' }}>
+              Petition Denied by Oracle
+            </div>
+            <div style={{ color: '#FFD0D0', fontSize: '0.82rem', lineHeight: '1.4' }}>
+              {submitError}
+            </div>
+          </div>
+          <button
+            onClick={() => setSubmitError('')}
+            style={{ background: 'none', border: 'none', color: '#FFF', cursor: 'pointer', fontSize: '1.1rem', marginLeft: 'auto', flexShrink: 0, padding: '0 4px' }}
+          >✕</button>
+        </div>
+      )}
+
       {/* ── SUBMITTING ANIMATION OVERLAY ────────────────────────── */}
       {isSubmitting && (
         <div style={{
@@ -657,8 +703,26 @@ export default function Report() {
                     {Math.round((submitDetails.aiAnalysis.confidence || 0.8) * 100)}% Confidence
                   </div>
                 </div>
-                <div style={{ fontSize: '0.9rem', marginBottom: '8px', lineHeight: '1.4' }}>
-                  <strong>{submitDetails.aiAnalysis.summary || 'Anomaly detected.'}</strong>
+
+                {/* Prominent issue type badge */}
+                <div style={{
+                  background: 'rgba(212, 175, 55, 0.15)',
+                  border: '1px solid #D4AF37',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span style={{ fontSize: '0.65rem', color: '#D4AF37', fontWeight: 800, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Detected Issue:</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 900, color: '#F5E6C4' }}>
+                    {submitDetails.aiAnalysis.type || submitDetails.category || 'Civic Issue'}
+                  </span>
+                </div>
+
+                <div style={{ fontSize: '0.85rem', marginBottom: '8px', lineHeight: '1.4', color: '#C4A484', fontStyle: 'italic' }}>
+                  {submitDetails.aiAnalysis.sceneDescription || submitDetails.aiAnalysis.summary || 'Anomaly detected.'}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem' }}>
                   <div><strong>Severity:</strong> {submitDetails.aiAnalysis.severity}</div>
