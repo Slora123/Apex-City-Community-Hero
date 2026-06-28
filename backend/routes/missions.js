@@ -53,11 +53,7 @@ router.get('/', optionalAuth, async (req, res) => {
       query += ` AND i.reporter_id != $${params.length}`;
     }
 
-    // Filter by city in production to keep user experience localized
-    if (userCity && process.env.NODE_ENV === 'production') {
-      params.push(userCity);
-      query += ` AND (reporter.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`;
-    }
+
 
     query += ' ORDER BY i.severity DESC, m.created_at DESC';
 

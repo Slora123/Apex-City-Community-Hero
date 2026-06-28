@@ -48,10 +48,7 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(type);
       conditions.push(`i.type = $${params.length}`);
     }
-    if (userCity) {
-      params.push(userCity);
-      conditions.push(`(u.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`);
-    }
+
 
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
