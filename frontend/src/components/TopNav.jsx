@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { Shield, Trophy, Star, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,19 @@ export default function TopNav() {
   const { hero, volume, setVolume, isMuted, setIsMuted } = useGame();
   const navigate = useNavigate();
   const [showLogout, setShowLogout] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showLogout) return;
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowLogout(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showLogout]);
 
   const getAvatarUrl = (avatar) => {
     if (!avatar) return '/avtar1.png';
@@ -33,6 +46,7 @@ export default function TopNav() {
       boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
     }}>
       <div 
+        ref={dropdownRef}
         style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', position: 'relative' }}
         onClick={() => setShowLogout(!showLogout)}
       >

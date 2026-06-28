@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Trophy, Home, Map, CheckSquare, User, Shield, Scroll, Activity, MapPin, Volume2, VolumeX } from 'lucide-react';
@@ -25,6 +25,19 @@ export default function Dashboard() {
   const xpPercent = Math.min(100, Math.round((hero.xp / 5000) * 100));
 
   const [showLogout, setShowLogout] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showLogout) return;
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowLogout(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showLogout]);
 
   const getAvatarUrl = (avatar) => {
     if (!avatar) return '/avtar1.png';
@@ -42,6 +55,7 @@ export default function Dashboard() {
       <div className="home-stats-container">
         {/* User Profile Header */}
         <div 
+          ref={dropdownRef}
           onClick={() => setShowLogout(!showLogout)}
           style={{
             display: 'flex',
