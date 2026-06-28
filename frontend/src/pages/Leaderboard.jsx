@@ -227,8 +227,22 @@ export default function Leaderboard() {
 
   const [activeTab, setActiveTab] = useState('leaderboard'); // 'leaderboard' | 'achievements'
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const [apiLeaderboard, setApiLeaderboard] = useState(null);
-  const [apiAchievements, setApiAchievements] = useState(null);
+  const [apiLeaderboard, setApiLeaderboard] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_leaderboard');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [apiAchievements, setApiAchievements] = useState(() => {
+    try {
+      const cached = localStorage.getItem('cached_achievements');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loadingLB, setLoadingLB] = useState(false);
 
   // Fetch real leaderboard from backend
@@ -238,7 +252,7 @@ export default function Leaderboard() {
       try {
         const data = await getLeaderboard('national');
         if (data && data.leaderboard) {
-          setApiLeaderboard(data.leaderboard.map(u => ({
+          const mapped = data.leaderboard.map(u => ({
             name: u.name,
             level: u.level,
             xp: u.xp,
@@ -246,7 +260,9 @@ export default function Leaderboard() {
             rankName: u.rank || 'Guild Member',
             isCurrentUser: u.isCurrentUser || false,
             totalMissions: u.totalMissions || 0
-          })));
+          }));
+          setApiLeaderboard(mapped);
+          localStorage.setItem('cached_leaderboard', JSON.stringify(mapped));
         }
       } catch (err) {
         console.warn('Could not load leaderboard from backend:', err.message);
@@ -261,7 +277,10 @@ export default function Leaderboard() {
   useEffect(() => {
     if (!hero.id) return;
     getAchievements(hero.id).then(data => {
-      if (data && data.badges) setApiAchievements(data.badges);
+      if (data && data.badges) {
+        setApiAchievements(data.badges);
+        localStorage.setItem('cached_achievements', JSON.stringify(data.badges));
+      }
     }).catch(() => {});
   }, [hero.id]);
 
