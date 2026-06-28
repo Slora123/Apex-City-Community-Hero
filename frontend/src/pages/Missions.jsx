@@ -195,7 +195,7 @@ export default function Missions() {
             .then(data => {
               if (data && data.address) {
                 const addr = data.address;
-                const districtName = addr.district || addr.county || addr.state_district || addr.city_district || addr.city || addr.town || addr.suburb || '';
+                const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
                 if (districtName) {
                   setCurrentDistrict(districtName);
                 }

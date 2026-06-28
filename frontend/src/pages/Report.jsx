@@ -106,7 +106,7 @@ export default function Report() {
 
               // Get district programmatically
               const addr = data.address || {};
-              const districtName = addr.district || addr.county || addr.state_district || addr.city_district || addr.city || addr.town || addr.suburb || '';
+              const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
 
               let finalAddress = preciseAddress;
               if (districtName && !preciseAddress.toLowerCase().includes(districtName.toLowerCase())) {
