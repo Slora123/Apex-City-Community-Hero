@@ -834,14 +834,30 @@ export default function Missions() {
                     if (isDirtyNeighbourhood) {
                       // Only show dirty neighbourhood in local view if user's district is Vasai-Virar
                       const userArea = (hero.area || '').toLowerCase();
-                      return userArea.includes('vasai') || userArea.includes('virar');
+                      const userCity = (hero.city || '').toLowerCase();
+                      return userArea.includes('vasai') || userArea.includes('virar') || userCity.includes('vasai') || userCity.includes('virar');
                     }
                     
-                    // For other issues, show if they match user's area
+                    // Match the entire district as local (e.g. Alibag issues are local for Raigad users)
                     const userArea = (hero.area || '').toLowerCase().trim();
-                    if (!userArea) return true;
-                    const isMatchArea = (m.reporterArea || '').toLowerCase().includes(userArea);
-                    const isMatchLoc = (m.location || '').toLowerCase().includes(userArea);
+                    const userCity = (hero.city || '').toLowerCase().trim();
+                    if (!userArea && !userCity) return true;
+
+                    const isUserInRaigad = userArea.includes('raigad') || userCity.includes('alibag') || userArea.includes('alibag') || userCity.includes('raigad');
+                    const isUserInVasai = userArea.includes('vasai') || userCity.includes('vasai') || userArea.includes('naigaon') || userCity.includes('naigaon') || userArea.includes('virar') || userCity.includes('virar');
+
+                    const mLoc = (m.location || '').toLowerCase();
+                    const mRepArea = (m.reporterArea || '').toLowerCase();
+
+                    const isIssueInRaigad = mLoc.includes('alibag') || mLoc.includes('raigad') || mRepArea.includes('raigad') || mRepArea.includes('alibag');
+                    const isIssueInVasai = mLoc.includes('vasai') || mLoc.includes('virar') || mLoc.includes('naigaon') || mLoc.includes('umela') || mRepArea.includes('vasai') || mRepArea.includes('virar') || mRepArea.includes('naigaon') || mRepArea.includes('umela');
+
+                    if (isUserInRaigad && isIssueInRaigad) return true;
+                    if (isUserInVasai && isIssueInVasai) return true;
+
+                    // Fallback to basic string match
+                    const isMatchArea = userArea && mRepArea.includes(userArea);
+                    const isMatchLoc = userArea && mLoc.includes(userArea);
                     return isMatchArea || isMatchLoc;
                   }
                 });
