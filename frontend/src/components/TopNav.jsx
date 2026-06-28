@@ -45,14 +45,14 @@ export default function TopNav() {
       zIndex: 1000,
       boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
     }}>
-      <div 
+      <div
         ref={dropdownRef}
         style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: 'pointer', position: 'relative' }}
         onClick={() => setShowLogout(!showLogout)}
       >
-        <img 
-          src={getAvatarUrl(hero.avatar)} 
-          alt="Avatar" 
+        <img
+          src={getAvatarUrl(hero.avatar)}
+          alt="Avatar"
           style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid var(--accent-color)', objectFit: 'cover' }}
         />
         <div>
@@ -63,7 +63,7 @@ export default function TopNav() {
         </div>
 
         {showLogout && (
-          <div 
+          <div
             style={{
               position: 'absolute',
               top: '60px',
@@ -123,7 +123,7 @@ export default function TopNav() {
 
             <hr style={{ border: 'none', borderTop: '1px solid var(--panel-border)', margin: '4px 0' }} />
 
-            <div 
+            <div
               onClick={(e) => {
                 e.stopPropagation();
                 logout();

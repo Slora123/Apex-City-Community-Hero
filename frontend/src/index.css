@@ -28,88 +28,95 @@
 
 /* ══ Cherry Wood Custom Cursor Set ══════════════════════════════════ */
 
-/* 1. DEFAULT — normal pointer everywhere */
+/* 1. DEFAULT — covers every element including React-injected ones */
 *, *::before, *::after,
-html, body,
+html, body, #root, #root *,
 div, span, section, article, aside, header, footer, main, nav,
-canvas, svg, img, video,
-p, h1, h2, h3, h4, h5, h6, li, ul, ol {
+canvas, svg, svg *, img, video, figure, picture,
+p, h1, h2, h3, h4, h5, h6, li, ul, ol, table, tr, td, th {
   cursor: url('/cursors/Cherry Wood (normal select).cur'), auto !important;
 }
 
-/* 2. POINTER — links, buttons, anything clickable (animated!) */
-a, button,
+/* 2. POINTER — links & buttons — use alternate-select.cur (.ani not supported in Chrome) */
+a, a *, button, button *,
 [role="button"], [role="tab"], [role="menuitem"], [role="option"],
 label[for], select,
-[style*="cursor: pointer"], [style*="cursor:pointer"] {
-  cursor: url('/cursors/Cherry Wood (link select).ani'), pointer !important;
+[style*="cursor: pointer"], [style*="cursor:pointer"],
+[style*="cursor:hand"] {
+  cursor: url('/cursors/Cherry Wood (alternate select).cur'), pointer !important;
 }
 
-/* 3. TEXT — inputs and editable fields */
+/* 3. TEXT — all input fields */
 input[type="text"], input[type="email"], input[type="password"],
 input[type="number"], input[type="search"], input[type="url"],
-input[type="tel"], input[type="date"],
-textarea, [contenteditable="true"] {
+input[type="tel"], input[type="date"], input[type="time"],
+textarea, [contenteditable="true"], [contenteditable=""] {
   cursor: url('/cursors/Cherry Wood (text select).cur'), text !important;
 }
 
-/* 4. BUSY / WAIT — loading spinners, skeleton screens */
-[aria-busy="true"], .loading, .skeleton, .spinner {
-  cursor: url('/cursors/Cherry Wood (busy).cur'), wait !important;
+/* 4. DEFAULT for other inputs (checkbox, radio, file, submit etc.) */
+input[type="checkbox"], input[type="radio"],
+input[type="file"], input[type="submit"],
+input[type="button"], input[type="reset"] {
+  cursor: url('/cursors/Cherry Wood (alternate select).cur'), pointer !important;
 }
 
-/* 5. PROGRESS — background work happening */
-.async-loading, [data-loading="true"] {
-  cursor: url('/cursors/Cherry Wood (working in background).cur'), progress !important;
+/* 5. RANGE SLIDER */
+input[type="range"] {
+  cursor: url('/cursors/Cherry Wood (horizontal resize).cur'), ew-resize !important;
 }
 
-/* 6. NOT-ALLOWED — disabled elements */
+/* 6. NOT-ALLOWED — disabled */
 [disabled], [aria-disabled="true"],
-button:disabled, input:disabled, select:disabled, textarea:disabled {
+button:disabled, button:disabled *,
+input:disabled, select:disabled, textarea:disabled {
   cursor: url('/cursors/Cherry Wood (unavailable).cur'), not-allowed !important;
 }
 
-/* 7. MOVE / GRAB — draggable cards, map drag */
-[draggable="true"], .draggable, .grabbable,
+/* 7. MOVE / GRAB */
+[draggable="true"], [draggable="true"] *, .draggable,
 [style*="cursor: grab"], [style*="cursor:grab"],
 [style*="cursor: move"], [style*="cursor:move"] {
   cursor: url('/cursors/Cherry Wood (move).cur'), grab !important;
 }
 
-/* 8. HELP — tooltip-bearing elements, info icons */
-.help-icon, [data-tooltip], [aria-label][tabindex],
-[style*="cursor: help"] {
+/* 8. HELP */
+.help-icon, [data-tooltip],
+[style*="cursor: help"], [style*="cursor:help"] {
   cursor: url('/cursors/Cherry Wood (help select).cur'), help !important;
 }
 
-/* 9. RESIZE HORIZONTAL — splitter panels, column resize handles */
-[style*="cursor: ew-resize"], [style*="cursor:ew-resize"],
-[style*="cursor: col-resize"], .col-resize {
+/* 9. BUSY / WAIT */
+[aria-busy="true"], [aria-busy="true"] *, .loading, .skeleton {
+  cursor: url('/cursors/Cherry Wood (busy).cur'), wait !important;
+}
+
+/* 10. PROGRESS */
+[data-loading="true"], .async-loading {
+  cursor: url('/cursors/Cherry Wood (working in background).cur'), progress !important;
+}
+
+/* 11. RESIZE */
+[style*="cursor: ew-resize"], [style*="cursor:ew-resize"], .col-resize {
   cursor: url('/cursors/Cherry Wood (horizontal resize).cur'), ew-resize !important;
 }
-
-/* 10. RESIZE VERTICAL — row resize handles */
-[style*="cursor: ns-resize"], [style*="cursor:ns-resize"],
-[style*="cursor: row-resize"], .row-resize {
+[style*="cursor: ns-resize"], [style*="cursor:ns-resize"], .row-resize {
   cursor: url('/cursors/Cherry Wood (vertical resize).cur'), ns-resize !important;
 }
-
-/* 11. RESIZE DIAGONAL NW-SE — modal/panel corner drag */
 [style*="cursor: nwse-resize"], [style*="cursor:nwse-resize"] {
   cursor: url('/cursors/Cherry Wood (diagonal resize 1).cur'), nwse-resize !important;
 }
-
-/* 12. RESIZE DIAGONAL NE-SW */
 [style*="cursor: nesw-resize"], [style*="cursor:nesw-resize"] {
   cursor: url('/cursors/Cherry Wood (diagonal resize 2).cur'), nesw-resize !important;
 }
 
-/* 13. PRECISION / CROSSHAIR — map pin placement, heatmap interaction */
+/* 12. CROSSHAIR / PRECISION */
 .crosshair, [style*="cursor: crosshair"], [style*="cursor:crosshair"],
 [data-map-mode="pin"] {
   cursor: url('/cursors/Cherry Wood (precision select).cur'), crosshair !important;
 }
 /* ═════════════════════════════════════════════════════════════════ */
+
 
 
 html {
