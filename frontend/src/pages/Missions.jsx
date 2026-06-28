@@ -189,7 +189,7 @@ export default function Missions() {
         (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          refreshMissions(lat, lng);
+          refreshMissions();
 
           // Reverse geocode to get current district programmatically
           fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
