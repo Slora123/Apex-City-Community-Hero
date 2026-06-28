@@ -253,6 +253,32 @@ router.post('/authority/unlock', (req, res) => {
     return res.json({ success: true, location: 'Virar', telemetry: locationData.Virar });
   } else if (cleanInput === codeNalasopara) {
     return res.json({ success: true, location: 'Nalasopara', telemetry: locationData.Nalasopara });
+  } else if (cleanInput.length > 2) {
+    // Dynamic city generation for any other passcode!
+    const dynamicTelemetry = {
+      reports: [
+        { title: `${cleanInput} Central Blockage`, severity: 'Critical', confidence: 96, authority: 'Department of Transportation' },
+        { title: `${cleanInput} Plaza Lighting`, severity: 'Medium', confidence: 88, authority: 'Public Works' },
+        { title: `${cleanInput} Water Main Leak`, severity: 'High', confidence: 92, authority: 'Water & Sanitation Dept' },
+        { title: 'Local Park Debris', severity: 'Low', confidence: 75, authority: 'Waste Management' },
+        { title: 'Subway Entrance Flooded', severity: 'High', confidence: 95, authority: 'Public Infrastructure' }
+      ],
+      scalarHotspot: { r: Math.floor(Math.random() * 8) + 1, c: Math.floor(Math.random() * 8) + 1 },
+      senthianTop: Array.from({length: 6}, () => Math.floor(Math.random() * 60) + 80),
+      senthianBottom: Array.from({length: 6}, () => Math.floor(Math.random() * 40) + 30),
+      affiliateHotspot: { r: Math.floor(Math.random() * 6) + 2, c: Math.floor(Math.random() * 10) + 2 },
+      contributorBars: [
+        { label: 'Mon', val: Math.floor(Math.random() * 100) + 20 },
+        { label: 'Tue', val: Math.floor(Math.random() * 100) + 20 },
+        { label: 'Wed', val: Math.floor(Math.random() * 100) + 20 },
+        { label: 'Thu', val: Math.floor(Math.random() * 100) + 20 },
+        { label: 'Fri', val: Math.floor(Math.random() * 100) + 20 },
+        { label: 'Sat', val: Math.floor(Math.random() * 100) + 20 }
+      ]
+    };
+    // Capitalize the first letter for display
+    const formattedLocation = cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1);
+    return res.json({ success: true, location: formattedLocation, telemetry: dynamicTelemetry });
   } else {
     return res.status(401).json({ success: false, error: 'The gatekeeper frowns. That passcode is unrecognized in our archives.' });
   }
