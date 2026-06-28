@@ -206,7 +206,7 @@ async function geminiAnalysis(imagePath, estimatedReports = null, contextData = 
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   } catch (err) {
     console.warn('⚠️  Could not initialize Gemini, using mock:', err.message);
     return mockAnalysis(imagePath, estimatedReports);
@@ -327,7 +327,7 @@ Return ONLY a raw JSON object. No markdown, no explanation. Exactly this structu
     // Handle dynamic fields
     parsed.estimatedReports = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
     parsed.estimatedReward = parsed.estimatedReward || calculateSolveReward(parsed.category, parsed.severity, 'Fully Resolved');
-    parsed.model = 'gemini-1.5-flash';
+    parsed.model = 'gemini-2.5-flash';
 
     return parsed;
   } catch (err) {
@@ -374,7 +374,7 @@ async function geminiCompare(beforePath, afterPath, issueType) {
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   } catch (err) {
     console.warn('⚠️  Could not initialize Gemini for comparison, using mock:', err.message);
     return mockComparison(issueType);
