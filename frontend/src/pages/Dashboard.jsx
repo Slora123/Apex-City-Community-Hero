@@ -76,6 +76,7 @@ export default function Dashboard() {
               width: '32px',
               borderRadius: '50%',
               objectFit: 'cover',
+              objectPosition: 'center 15%',
               border: '2px solid #8B5E34',
               boxShadow: '0 2px 4px rgba(0,0,0,0.4)'
             }}

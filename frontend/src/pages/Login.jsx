@@ -315,7 +315,7 @@ export default function Login() {
                 </button>
 
                 <button
-                  onClick={() => handleChooseMethod('email')}
+                  onClick={() => setStep('email')}
                   disabled={loading}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',

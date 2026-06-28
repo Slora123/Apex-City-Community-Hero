@@ -13,6 +13,7 @@ export default defineConfig({
       '/api/auth': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/authority': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/issues': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/heatmap': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/missions': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/analyze': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/users': { target: 'http://localhost:3001', changeOrigin: true },

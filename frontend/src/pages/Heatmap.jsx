@@ -80,7 +80,7 @@ export default function Heatmap() {
       }
       const script = document.createElement('script');
       script.id = 'google-maps-script';
-      script.src = `https://maps.googleapis.com/maps/api/js?libraries=visualization`;
+      script.src = `https://maps.googleapis.com/maps/api/js?v=3.58&libraries=visualization`;
       script.async = true;
       script.defer = true;
       script.onload = () => setGoogleLoaded(true);
@@ -93,23 +93,22 @@ export default function Heatmap() {
   useEffect(() => {
     if (!googleLoaded || !mapRef.current || mapInstance) return;
 
-    // Default center (Vasai: 19.3460, 72.8337)
-    let mapCenter = { lat: 19.3460, lng: 72.8337 };
+    // Predefined coordinate lookup for instant, rate-limit-proof centering
+    const CITY_COORDS = {
+      'alibag': { lat: 18.652369, lng: 72.879486 },
+      'alibagh': { lat: 18.652369, lng: 72.879486 },
+      'vasai': { lat: 19.3460, lng: 72.8337 },
+      'vasai-virar': { lat: 19.3460, lng: 72.8337 },
+      'mumbai': { lat: 19.0760, lng: 72.8777 },
+      'demo city': { lat: 28.6139, lng: 77.2090 }
+    };
 
-    // Try geocoding city using Nominatim
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          mapCenter = { lat, lng };
-          if (mapInstance) {
-            mapInstance.setCenter(mapCenter);
-          }
-        }
-      })
-      .catch(err => console.warn('Nominatim geocode failed, using defaults', err));
+    const lowerCity = city.toLowerCase().trim();
+    let mapCenter = { lat: 19.3460, lng: 72.8337 }; // default to Vasai
+
+    if (CITY_COORDS[lowerCity]) {
+      mapCenter = CITY_COORDS[lowerCity];
+    }
 
     const mapStyle = [
       { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
@@ -146,7 +145,8 @@ export default function Heatmap() {
         "stylers": [{ "color": "#212a37" }]
       },
       {
-        "featureType": "road.text.fill",
+        "featureType": "road",
+        "elementType": "labels.text.fill",
         "stylers": [{ "color": "#9ca5b3" }]
       },
       {
@@ -191,6 +191,20 @@ export default function Heatmap() {
     });
 
     setMapInstance(map);
+
+    // Fallback geocoding if not in pre-defined lookup
+    if (!CITY_COORDS[lowerCity]) {
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lng = parseFloat(data[0].lon);
+            map.setCenter({ lat, lng });
+          }
+        })
+        .catch(err => console.warn('Nominatim geocode failed', err));
+    }
   }, [googleLoaded, city]);
 
   // Update Heatmap Layer and Markers when data or filters change
@@ -242,14 +256,22 @@ export default function Heatmap() {
     });
 
     // Update heatmap layer
-    if (heatmapLayerRef.current) {
-      heatmapLayerRef.current.setData(points);
-    } else {
-      heatmapLayerRef.current = new window.google.maps.visualization.HeatmapLayer({
-        data: points,
-        map: mapInstance,
-        radius: 35
-      });
+    let heatmapSuccess = false;
+    try {
+      if (window.google && window.google.maps && window.google.maps.visualization && window.google.maps.visualization.HeatmapLayer) {
+        if (heatmapLayerRef.current) {
+          heatmapLayerRef.current.setData(points);
+        } else {
+          heatmapLayerRef.current = new window.google.maps.visualization.HeatmapLayer({
+            data: points,
+            map: mapInstance,
+            radius: 35
+          });
+        }
+        heatmapSuccess = true;
+      }
+    } catch (e) {
+      console.warn("Google Maps native HeatmapLayer is unavailable, using circles fallback:", e.message);
     }
 
     // Add markers for individual hotspots
@@ -265,6 +287,19 @@ export default function Heatmap() {
       const color = colors[issue.type] || '#FFF';
       const severityScore = getSeverityScore(issue.severity);
       const weight = (issue.reports * 2) + severityScore;
+
+      // Render large translucent circles representing hotspots if Google Heatmap layer is deprecated/unloaded
+      if (!heatmapSuccess) {
+        const circle = new window.google.maps.Circle({
+          strokeWeight: 0,
+          fillColor: color,
+          fillOpacity: 0.15 + Math.min(0.2, weight / 50),
+          map: mapInstance,
+          center: { lat: issue.lat, lng: issue.lng },
+          radius: 80 + (weight * 6)
+        });
+        markersRef.current.push(circle);
+      }
 
       const marker = new window.google.maps.Marker({
         position: { lat: issue.lat, lng: issue.lng },
@@ -306,6 +341,14 @@ export default function Heatmap() {
       ...prev,
       [type]: !prev[type]
     }));
+
+    // Find first issue of this type in the active city and center the map on it
+    const matches = heatmapData.filter(issue => issue.type === type);
+    if (matches.length > 0 && mapInstance) {
+      const target = matches[0];
+      mapInstance.panTo({ lat: target.lat, lng: target.lng });
+      mapInstance.setZoom(16);
+    }
   };
 
   const getPillColor = (type) => {
@@ -386,16 +429,16 @@ export default function Heatmap() {
           border: 3px solid #5A4B3D;
           border-radius: 12px;
           color: #2D1B13;
-          padding: 16px 12px;
+          padding: 12px 10px;
           box-shadow: inset 0 0 15px rgba(139,94,52,0.25), 0 4px 8px rgba(0,0,0,0.3);
-          max-height: 520px;
+          max-height: 540px;
           overflow-y: auto;
         }
 
         .filter-pill {
-          padding: 6px 10px;
+          padding: 4px 8px;
           border-radius: 20px;
-          font-size: 0.72rem;
+          font-size: 0.68rem;
           font-weight: 800;
           cursor: pointer;
           border: 2px solid transparent;
@@ -427,15 +470,17 @@ export default function Heatmap() {
         .time-tab:last-child { border-radius: 0 6px 6px 0; }
         
         .insight-card {
-          background: rgba(255, 255, 255, 0.45);
-          border-left: 4px solid #8B5E34;
-          border-radius: 4px;
-          padding: 8px 12px;
+          background: #EEDC82;
+          border: 1.5px solid rgba(139,94,52,0.25);
+          border-left: 5px solid #6B46C1;
+          border-radius: 6px;
+          padding: 10px 12px;
           font-size: 0.82rem;
-          line-height: 1.4;
+          line-height: 1.45;
           color: #2D1B13;
           font-style: italic;
           font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
         @keyframes spin {
@@ -471,8 +516,8 @@ export default function Heatmap() {
           <X size={26} />
         </button>
 
-        <div className="parchment-container" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #5A4B3D', paddingBottom: '8px' }}>
+        <div className="parchment-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #5A4B3D', paddingBottom: '6px', flexShrink: 0 }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Realtime Anomaly Densities ({city})
             </span>
@@ -485,7 +530,7 @@ export default function Heatmap() {
           </div>
 
           {/* GOOGLE MAP LAYER */}
-          <div style={{ position: 'relative', width: '100%', height: '240px', background: '#242f3e', borderRadius: '10px', overflow: 'hidden', border: '3.5px double #8B5E34' }}>
+          <div style={{ position: 'relative', width: '100%', height: '210px', background: '#242f3e', borderRadius: '10px', overflow: 'hidden', border: '3.5px double #8B5E34', flexShrink: 0 }}>
             <div ref={mapRef} style={{ width: '100%', height: '100%' }}>
               {!googleLoaded && (
                 <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#B3A387', fontSize: '0.85rem' }}>
@@ -496,14 +541,21 @@ export default function Heatmap() {
           </div>
 
           {/* CATEGORY FILTERS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Filter size={11} /> Filter By Category
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {Object.keys(selectedTypes).map(type => {
+              {Array.from(new Set(heatmapData.map(issue => issue.type))).map(type => {
                 const active = selectedTypes[type];
                 const activeColor = getPillColor(type);
+                const displayLabels = {
+                  'Pothole': 'Potholes',
+                  'Water Leakage': 'Water Leakage',
+                  'Garbage': 'Garbage',
+                  'Streetlights': 'Streetlights',
+                  'Infrastructure': 'Infrastructure'
+                };
                 return (
                   <div
                     key={type}
@@ -516,7 +568,7 @@ export default function Heatmap() {
                     }}
                   >
                     <span>{type === 'Pothole' ? '🔴' : type === 'Water Leakage' ? '🔵' : type === 'Garbage' ? '🟢' : type === 'Streetlights' ? '🟡' : '🟣'}</span>
-                    <span>{type}s</span>
+                    <span>{displayLabels[type] || type}</span>
                   </div>
                 );
               })}
@@ -524,7 +576,7 @@ export default function Heatmap() {
           </div>
 
           {/* TIME TABS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Clock size={11} /> Time Horizon
             </div>
@@ -547,12 +599,11 @@ export default function Heatmap() {
           </div>
 
           {/* AI PREDICTION INSIGHTS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '2px dashed rgba(90, 75, 61, 0.3)', paddingTop: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '2px dashed rgba(90, 75, 61, 0.3)', paddingTop: '10px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2B6CB0', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Sparkles size={13} fill="#2B6CB0" /> AI Predictive Insights
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#6B46C1', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Sparkles size={13} fill="#6B46C1" /> AI Predictive Insights
               </div>
-              <span style={{ fontSize: '0.62rem', fontWeight: 900, background: '#2B6CB0', color: '#FFF', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>Gemini powered</span>
             </div>
 
             {loadingInsights ? (

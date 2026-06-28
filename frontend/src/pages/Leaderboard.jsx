@@ -219,7 +219,8 @@ export default function Leaderboard() {
           borderRadius: '50%',
           border: '1.5px solid #5A4B3D',
           marginRight: '10px',
-          objectFit: 'cover'
+          objectFit: 'cover',
+          objectPosition: 'center 15%'
         }}
       />
     );
