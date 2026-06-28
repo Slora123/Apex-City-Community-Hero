@@ -170,13 +170,42 @@ router.post('/', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Title is required' });
       }
 
+      // Fetch active issues within 200m to pass to AI for visual duplicate detection
+      let nearbyIssues = [];
+      const radiusKm = 0.2; // 200m
+      if (lat && lng) {
+        try {
+          const nearbyIssuesRes = await db.query(`
+            SELECT * FROM issues
+            WHERE status NOT IN ('resolved', 'closed')
+            AND lat IS NOT NULL AND lng IS NOT NULL
+          `);
+          for (const issue of nearbyIssuesRes.rows) {
+            const dist = haversineDistance(parseFloat(lat), parseFloat(lng), issue.lat, issue.lng);
+            if (dist <= radiusKm && issue.photo_path) {
+              const fullPath = path.join(__dirname, '../public/uploads', issue.photo_path);
+              if (fs.existsSync(fullPath)) {
+                nearbyIssues.push({
+                  id: issue.id,
+                  type: issue.type || issue.category,
+                  description: issue.description,
+                  imagePath: fullPath
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching nearby issues:', err);
+        }
+      }
+
       // Run AI analysis if photo uploaded
       let aiAnalysis = {};
       let photoPath = '';
       if (req.file) {
         photoPath = `issues/${req.file.filename}`;
         try {
-          aiAnalysis = await analyseImage(req.file.path, null, { lat, lng, address });
+          aiAnalysis = await analyseImage(req.file.path, null, { lat, lng, address, nearbyIssues });
           if (aiAnalysis.isValid === false) {
              // Delete the uploaded file if it's invalid
              fs.unlink(req.file.path, () => {});
@@ -193,8 +222,18 @@ router.post('/', requireAuth, (req, res) => {
       const effectiveCategory = aiAnalysis.type || category || type;
       const effectivePriority = aiAnalysis.priority || 'Moderate';
 
-      // Check if a very similar issue exists nearby (within ~200m) to merge
-      const existingIssue = await findNearbyDuplicateIssue(lat, lng, effectiveType, 0.2);
+      // Check if AI detected this as a duplicate of an existing nearby issue
+      let existingIssue = null;
+      if (aiAnalysis.duplicateOf) {
+        try {
+          const matchRes = await db.query('SELECT * FROM issues WHERE id = $1', [aiAnalysis.duplicateOf]);
+          if (matchRes.rows.length > 0) {
+            existingIssue = matchRes.rows[0];
+          }
+        } catch (err) {
+          console.error('Error looking up duplicate issue:', err);
+        }
+      }
 
       let issueId;
       let reportOrder;
@@ -351,22 +390,7 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function findNearbyDuplicateIssue(lat, lng, type, radiusKm) {
-  if (!lat || !lng) return null;
-  const issuesRes = await db.query(`
-    SELECT * FROM issues
-    WHERE type = $1 AND status NOT IN ('resolved', 'closed')
-    AND lat IS NOT NULL AND lng IS NOT NULL
-  `, [type]);
-
-  for (const issue of issuesRes.rows) {
-    const dist = haversineDistance(parseFloat(lat), parseFloat(lng), issue.lat, issue.lng);
-    if (dist <= radiusKm) {
-      return issue;
-    }
-  }
-  return null;
-}
+// Removed findNearbyDuplicateIssue, now using AI visual detection
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // km

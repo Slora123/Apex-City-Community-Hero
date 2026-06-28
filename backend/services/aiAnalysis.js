@@ -232,6 +232,39 @@ async function geminiAnalysis(imagePath, estimatedReports = null, contextData = 
     contextStr += `Use this location data to accurately estimate the "impact" (e.g. if it's near a school, park, residential area, highway) and "severity".`;
   }
 
+  // Handle visual duplicate detection
+  const contentParts = [
+    { text: '' }, // placeholder for prompt
+    {
+      inlineData: {
+        mimeType,
+        data: base64Image
+      }
+    }
+  ];
+
+  if (contextData.nearbyIssues && contextData.nearbyIssues.length > 0) {
+    contextStr += `\n\nDUPLICATE DETECTION:\n`;
+    contextStr += `There are ${contextData.nearbyIssues.length} recently reported issues within 200m of this location. I have provided their photos after the main image.\n`;
+    contextStr += `IMPORTANT: Compare the main uploaded image against these existing issue photos. Does the main image show the EXACT SAME physical object/issue as any of the existing issues (even if taken from a different angle or closer/further away)?\n`;
+    contextStr += `If YES, set "duplicateOf" to the Issue ID of the matching issue.\n`;
+    contextStr += `If NO (e.g. it's a completely different streetlight, or a different pothole), set "duplicateOf" to null.`;
+
+    for (const ni of contextData.nearbyIssues) {
+      try {
+        const niData = fs.readFileSync(ni.imagePath);
+        const niBase64 = niData.toString('base64');
+        const niExt = path.extname(ni.imagePath).toLowerCase().replace('.', '');
+        const niMime = niExt === 'png' ? 'image/png' : niExt === 'gif' ? 'image/gif' : niExt === 'webp' ? 'image/webp' : 'image/jpeg';
+        
+        contentParts.push({ text: `\n--- EXISTING ISSUE ---\nIssue ID: ${ni.id}\nType: ${ni.type}\nPhoto:` });
+        contentParts.push({ inlineData: { mimeType: niMime, data: niBase64 } });
+      } catch (e) {
+        console.warn(`Could not read nearby issue image for ${ni.id}`);
+      }
+    }
+  }
+
   // Two-step prompt: describe first, then classify freely — no forced category list
   const prompt = `You are an expert civic issue analyst for "Apex City – Community Hero", a platform where citizens report real civic problems.
 
@@ -252,6 +285,7 @@ Return ONLY a raw JSON object. No markdown, no explanation. Exactly this structu
   "sceneDescription": "<1-2 sentences: what you literally see in the image>",
   "type": "<The exact civic issue type — be specific, e.g. 'Dirty Public Toilet', 'Overflowing Garbage Bin', 'Cracked Footpath', 'Broken Playground Equipment', 'Stray Animals on Road', 'Graffiti on Public Wall'. Do NOT default to a wrong category.>",
   "category": "<snake_case machine key for the type above, e.g. dirty_public_toilet, overflowing_garbage, cracked_footpath, broken_playground, stray_animals, graffiti_wall>",
+  "duplicateOf": "<Issue ID of the exact same physical issue if it exists in the nearby issues provided, else null>",
   "handler": "<Community | Authority | Hybrid> — 'Community' if citizens can resolve it (e.g. litter, minor cleaning, small puddle). 'Authority' if it requires government or heavy machinery (broken pipe, collapsed road). 'Hybrid' if both can act together.",
   "department": "<Specific government branch or 'Local Community' — e.g. 'Sanitation Department', 'Road Maintenance Department', 'Animal Control', 'Water Supply Department', 'Public Works Department', 'Local Community'>",
   "communityCanHelp": <true if citizens can safely help resolve this issue, false otherwise>,
@@ -269,16 +303,10 @@ Return ONLY a raw JSON object. No markdown, no explanation. Exactly this structu
   "safetyLevel": "<Safe | Caution | Danger>"
 }`;
 
+  contentParts[0].text = prompt;
+
   try {
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType,
-          data: base64Image
-        }
-      }
-    ]);
+    const result = await model.generateContent(contentParts);
 
     const text = result.response.text().trim();
 
