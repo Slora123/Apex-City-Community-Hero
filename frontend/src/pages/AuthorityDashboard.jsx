@@ -18,6 +18,7 @@ export default function AuthorityDashboard() {
 
   // Access state
   const [passcode, setPasscode] = useState('');
+  const [email, setEmail] = useState('');
   const [unlockedLocation, setUnlockedLocation] = useState(null);
   const [activeData, setActiveData] = useState(null); // Loaded dynamically from backend API!
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,7 +42,7 @@ export default function AuthorityDashboard() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ passcode: cleanInput })
+        body: JSON.stringify({ email: email.trim(), passcode: cleanInput })
       });
 
       const data = await response.json();
@@ -469,7 +470,31 @@ export default function AuthorityDashboard() {
             </p>
 
             {/* Input Field Container */}
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrorMsg('');
+                }}
+                disabled={isLoading}
+                placeholder="Official Email"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  background: '#F4E8C1',
+                  border: '2px solid #5A4B3D',
+                  borderRadius: '8px',
+                  color: '#2D1B13',
+                  fontFamily: "'MedievalSharp', serif",
+                  fontSize: '1.05rem',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  outline: 'none',
+                  boxShadow: 'inset 0 0 5px rgba(0,0,0,0.18)'
+                }}
+              />
               <input
                 type="password"
                 value={passcode}

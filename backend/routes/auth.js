@@ -172,19 +172,33 @@ router.get('/me', require('../middleware/auth').requireAuth, async (req, res) =>
 // ── Authority Dashboard Dynamic Endpoint ──────────────────────────────────────
 router.post('/authority/unlock', async (req, res) => {
   try {
-    const { passcode } = req.body;
+    const { email, passcode } = req.body;
     const cleanInput = passcode ? passcode.toString().trim() : '';
+    const cleanEmail = email ? email.toString().trim().toLowerCase() : '';
     
-    if (cleanInput.length < 2) {
-      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Passcode too short.' });
+    if (cleanInput.length === 0 || cleanEmail.length === 0) {
+      return res.status(401).json({ success: false, error: 'Email and Passcode are required.' });
     }
 
-    const locationName = cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1);
+    let codeRes;
+    if (cleanEmail === 'test@gmail.com') {
+      // Hackathon Bypass: 'test@gmail.com' can access any city if they have a valid code
+      codeRes = await db.query('SELECT city FROM authority_codes WHERE passcode = $1', [cleanInput]);
+    } else {
+      // Strict Check: Email and Passcode must match exactly
+      codeRes = await db.query('SELECT city FROM authority_codes WHERE passcode = $1 AND email = $2', [cleanInput, cleanEmail]);
+    }
+    
+    if (codeRes.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Invalid email or passcode.' });
+    }
+
+    const locationName = codeRes.rows[0].city;
 
     // Fetch real issues for this location from the database
     const issuesRes = await db.query(
       "SELECT * FROM issues WHERE address ILIKE $1 OR city ILIKE $1 ORDER BY created_at DESC LIMIT 15",
-      [`%${cleanInput}%`]
+      [`%${locationName}%`]
     );
 
     const realReports = issuesRes.rows.map(issue => {
@@ -224,6 +238,46 @@ router.post('/authority/unlock', async (req, res) => {
     return res.json({ success: true, location: locationName, telemetry: dynamicTelemetry });
   } catch (err) {
     console.error('Authority unlock error:', err);
+    return res.status(500).json({ success: false, error: 'Internal Server Error' });
+  }
+});
+
+// ── Authority Registration Endpoint (For Super Admins) ──────────────────────
+router.post('/authority/register', async (req, res) => {
+  try {
+    const { city, department, email } = req.body;
+    if (!city || !email) {
+      return res.status(400).json({ success: false, error: 'City and email are required.' });
+    }
+
+    const { v4: uuidv4 } = require('uuid');
+    const cleanCity = city.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanDept = department ? department.trim() : 'Municipal Corporation';
+
+    // Generate code: VAS-MC-48392
+    const cityPrefix = cleanCity.substring(0, 3).toUpperCase();
+    let deptPrefix = 'MC';
+    const deptParts = cleanDept.split(' ');
+    if (deptParts.length > 1) {
+      deptPrefix = deptParts[0].charAt(0).toUpperCase() + deptParts[1].charAt(0).toUpperCase();
+    } else if (cleanDept.length >= 2) {
+      deptPrefix = cleanDept.substring(0, 2).toUpperCase();
+    }
+    const randNum = Math.floor(10000 + Math.random() * 90000); // 5 digits
+    const generatedCode = `${cityPrefix}-${deptPrefix}-${randNum}`;
+    
+    // Add or update authority code
+    await db.query(
+      `INSERT INTO authority_codes (id, city, department, email, passcode) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (email, city) DO UPDATE SET passcode = $5, department = $3`,
+      [uuidv4(), cleanCity, cleanDept, cleanEmail, generatedCode]
+    );
+
+    return res.json({ success: true, message: `Successfully registered authority for ${cleanCity}.`, generatedCode });
+  } catch (err) {
+    console.error('Authority register error:', err);
     return res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
