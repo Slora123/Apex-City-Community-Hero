@@ -232,30 +232,42 @@ async function geminiAnalysis(imagePath, estimatedReports = null, contextData = 
     contextStr += `Use this location data to accurately estimate the "impact" (e.g. if it's near a school, park, residential area, highway) and "severity".`;
   }
 
-  const prompt = `You are an AI assistant for a civic reporting platform called Apex City (tagline/description: Community Hero).
-Analyse this image of a reported civic issue and return ONLY a JSON object with these exact fields.
-Do NOT restrict yourself to a hardcoded list of issues. Identify the exact civic issue accurately (e.g., "Unclean Beach", "Broken Road", "Fallen Power Line", "Peeling Posters", "Massive Pothole").${contextStr}
+  // Two-step prompt: describe first, then classify freely — no forced category list
+  const prompt = `You are an expert civic issue analyst for "Apex City – Community Hero", a platform where citizens report real civic problems.
 
+STEP 1 – DESCRIBE WHAT YOU SEE:
+Look carefully at this image. Describe exactly what is visible: objects, condition, location type, any damage, dirt, hazard or problem.
+
+STEP 2 – CLASSIFY THE ISSUE:
+Based only on what you actually see (not what you expect), determine:
+- Is there a genuine civic issue here?
+- What EXACTLY is the issue? Be specific (e.g. "Dirty Public Toilet", "Overflowing Garbage Bin", "Broken Playground Swing", "Stray Dogs", "Graffiti on Wall", "Burst Water Pipe", "Cracked Road", etc.)
+- You are NOT limited to any predefined list. Create the most accurate category name.
+- If the image is NOT a civic issue (selfie, pet photo, indoor scene, food, screenshot), set isValid to false.
+${contextStr}
+
+Return ONLY a raw JSON object. No markdown, no explanation. Exactly this structure:
 {
-  "isValid": <true if the image appears to contain a genuine civic issue/damage/uncleanliness, false if it is a random photo, selfie, pet, indoor scene, generic screenshot, or clear prank>,
-  "type": "<Dynamically identified issue type, e.g., Unclean Beach, Pothole, Fallen Tree>",
-  "category": "<machine_key_corresponding_to_type>",
-  "handler": "<Community | Authority | Hybrid>. 'Community' if citizens can safely fix it (e.g. small water filling/puddles, litter, minor cleaning). 'Authority' if it requires government or heavy machinery (e.g. broken road, burst pipe). 'Hybrid' if both can act.",
-  "department": "<Specific government branch responsible if Authority/Hybrid, or 'Local Community' if Community>",
-  "communityCanHelp": <true if citizens can safely resolve it (e.g. small puddle/flood), false otherwise>,
+  "isValid": <true if genuine civic issue; false if selfie/random photo/not a civic problem>,
+  "sceneDescription": "<1-2 sentences: what you literally see in the image>",
+  "type": "<The exact civic issue type — be specific, e.g. 'Dirty Public Toilet', 'Overflowing Garbage Bin', 'Cracked Footpath', 'Broken Playground Equipment', 'Stray Animals on Road', 'Graffiti on Public Wall'. Do NOT default to a wrong category.>",
+  "category": "<snake_case machine key for the type above, e.g. dirty_public_toilet, overflowing_garbage, cracked_footpath, broken_playground, stray_animals, graffiti_wall>",
+  "handler": "<Community | Authority | Hybrid> — 'Community' if citizens can resolve it (e.g. litter, minor cleaning, small puddle). 'Authority' if it requires government or heavy machinery (broken pipe, collapsed road). 'Hybrid' if both can act together.",
+  "department": "<Specific government branch or 'Local Community' — e.g. 'Sanitation Department', 'Road Maintenance Department', 'Animal Control', 'Water Supply Department', 'Public Works Department', 'Local Community'>",
+  "communityCanHelp": <true if citizens can safely help resolve this issue, false otherwise>,
   "severity": "<Low | Medium | High | Critical>",
   "priority": "<Low Priority | Moderate | Urgent | Critical>",
-  "urgency": "<text description of how urgent>",
-  "impact": "<describe who/what is impacted>",
-  "estimatedSize": "<physical size estimate>",
-  "confidence": <0.0 to 1.0 (ensure it is clamped between 0.0 and 0.99)>,
+  "urgency": "<Concise text: how urgently does this need to be resolved?>",
+  "impact": "<Who or what is affected — residents, children, traffic, hygiene, environment, etc.>",
+  "estimatedSize": "<Physical scale estimate if applicable, e.g. 'Small area', 'Entire stall block', '~10m stretch', or 'N/A'>",
+  "confidence": <float 0.0–0.99 — how confident you are in this classification>,
   "aiProvider": "gemini",
-  "estimatedReward": <integer representing points (e.g. 50 to 250) based on severity>,
-  "recommendedAuthority": "<same as department>",
-  "summary": "<Short description of the issue for display>"
-}
-
-Be accurate and helpful. Return ONLY valid JSON, without any markdown code blocks like \`\`\`json. Return ONLY valid values.`;
+  "estimatedReward": <integer 50–350 — points based on severity and how hard it is to fix>,
+  "recommendedAuthority": "<Same as department>",
+  "summary": "<One sentence describing the issue clearly for display to the public>",
+  "citizenAdvice": "<Short safety/hygiene advice for citizens near this issue>",
+  "safetyLevel": "<Safe | Caution | Danger>"
+}`;
 
   try {
     const result = await model.generateContent([
@@ -288,11 +300,16 @@ Be accurate and helpful. Return ONLY valid JSON, without any markdown code block
     if (parsed.confidence != null) {
       parsed.confidence = Math.min(Number(parsed.confidence.toFixed(2)), 0.99);
     }
-    
-    // Validate categorical fields
-    const validCategories = ['cracked_road', 'water_leak', 'broken_light', 'waste', 'infrastructure', 'traffic_signal', 'open_manhole', 'fallen_tree', 'blocked_drain', 'flooded_road', 'damaged_footpath', 'illegal_waste_dumping', 'broken_bus_stop', 'broken_bench', 'road_blockage', 'other'];
-    if (!validCategories.includes(parsed.category)) parsed.category = 'other';
-    
+
+    // ── NO hardcoded category whitelist ──────────────────────────────────────
+    // We trust Gemini's dynamic classification. Only sanitize to snake_case if
+    // the model returned something weird (spaces, uppercase, etc.).
+    if (parsed.category) {
+      parsed.category = parsed.category.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    } else {
+      parsed.category = 'other';
+    }
+
     if (!SEVERITY_LEVELS.includes(parsed.severity)) parsed.severity = 'Medium';
     
     const validPriorities = ['Low Priority', 'Moderate', 'Urgent', 'Critical'];
@@ -300,10 +317,16 @@ Be accurate and helpful. Return ONLY valid JSON, without any markdown code block
       parsed.priority = calculatePriority(parsed.severity, parsed.estimatedReports || 1, parsed.impact || '');
     }
     
+    // Use Gemini-provided authority/department — only fall back if missing
+    if (!parsed.recommendedAuthority && parsed.department) {
+      parsed.recommendedAuthority = parsed.department;
+    } else if (!parsed.recommendedAuthority) {
+      parsed.recommendedAuthority = getRecommendedAuthority(parsed.category);
+    }
+    
     // Handle dynamic fields
     parsed.estimatedReports = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
-    parsed.recommendedAuthority = getRecommendedAuthority(parsed.category);
-    parsed.estimatedReward = calculateSolveReward(parsed.category, parsed.severity, 'Fully Resolved');
+    parsed.estimatedReward = parsed.estimatedReward || calculateSolveReward(parsed.category, parsed.severity, 'Fully Resolved');
     parsed.model = 'gemini-1.5-flash';
 
     return parsed;
