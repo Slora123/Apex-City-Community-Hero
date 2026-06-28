@@ -246,6 +246,15 @@ body {
   min-height: 100vh;
   padding: clamp(8px, 4vw, 24px);
   box-sizing: border-box;
+  background-image: url('/landing.png');
+  background-size: cover;
+  background-position: center;
+}
+
+@media (max-width: 768px) {
+  .login-page {
+    background-image: url('/landing_mobile.png');
+  }
 }
 
 .login-card {

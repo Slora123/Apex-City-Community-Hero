@@ -226,16 +226,19 @@ export default function Login() {
     }
   };
 
+  const cardHeight = step === 'choose' ? 400 : (step === 'email' && emailMode === 'signup') ? 680 : (step === 'email' && emailMode === 'signin') ? 480 : 520;
+  const cardWidth = Math.round(cardHeight * 1.12);
+
   return (
     <div className="login-page">
-      <div className="login-card" style={{ position: 'relative', width: '90%', maxWidth: '400px', margin: '0 auto' }}>
+      <div className="login-card" style={{ position: 'relative', width: '90%', maxWidth: `${cardWidth}px`, margin: '0 auto' }}>
         <img
           src="/login.png"
           alt="Journey Access Panel"
           style={{ 
             width: '100%', 
             height: '100%',
-            minHeight: step === 'choose' ? '400px' : (step === 'email' && emailMode === 'signup') ? '680px' : (step === 'email' && emailMode === 'signin') ? '480px' : '520px',
+            minHeight: `${cardHeight}px`,
             objectFit: 'fill',
             display: 'block' 
           }}
