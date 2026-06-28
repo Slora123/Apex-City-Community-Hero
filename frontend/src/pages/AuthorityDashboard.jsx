@@ -495,7 +495,7 @@ export default function AuthorityDashboard() {
                 }}
               />
               <span style={{ color: '#D4AF37', fontSize: '0.78rem', fontWeight: 600, textAlign: 'center', margin: '4px 0' }}>
-                🔑 Try: <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('vasai.admin@gov.in')}>vasai.admin@gov.in</span> or <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('alibagh.admin@gov.in')}>alibagh.admin@gov.in</span>
+                🔑 Try: <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('vasai.admin@gov.in')}>city.admin@gov.in</span>
               </span>
               {errorMsg && (
                 <span style={{ color: '#B53F3F', fontSize: '0.78rem', fontWeight: 700, fontStyle: 'italic', marginTop: '2px' }}>

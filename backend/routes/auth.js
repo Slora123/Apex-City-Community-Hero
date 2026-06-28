@@ -179,12 +179,14 @@ router.post('/authority/unlock', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Official Email is required.' });
     }
 
-    // Strict Check: Check if email exists in database
-    const codeRes = await db.query('SELECT city FROM authority_codes WHERE email = $1', [cleanEmail]);
-    if (codeRes.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Invalid official email.' });
+    // Dynamic Check: Parse city name from [city].admin@gov.in
+    const match = cleanEmail.match(/^([a-zA-Z0-9_-]+)\.admin@gov\.in$/);
+    if (!match) {
+      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Invalid official email format (must be city.admin@gov.in).' });
     }
-    const locationName = codeRes.rows[0].city;
+
+    const cityPrefix = match[1];
+    const locationName = cityPrefix.charAt(0).toUpperCase() + cityPrefix.slice(1);
 
     // Fetch real issues for this location from the database
     const issuesRes = await db.query(
