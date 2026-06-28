@@ -103,7 +103,8 @@ export const GameProvider = ({ children }) => {
           issueId: m.issue_id,
           backendId: m.id,
           assigneeId: m.assignee_id,
-          reporter_count: m.reporter_count
+          reporter_count: m.reporter_count,
+          reporterArea: m.reporter_area || ''
         }));
         setMissions(mapped);
         setIsBackendOnline(true);

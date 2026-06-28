@@ -177,6 +177,7 @@ export default function Missions() {
   const [selectedMission, setSelectedMission] = useState(null);
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
+  const [areaFilter, setAreaFilter] = useState('global'); // 'global' | 'local'
 
   // Fetch nearby missions once on mount
   useEffect(() => {
@@ -766,45 +767,110 @@ export default function Missions() {
             Quest Cards
           </h3>
 
+          {/* District Filter Tabs */}
+          <div style={{ display: 'flex', width: '100%', marginBottom: '14px', background: 'rgba(45, 27, 19, 0.4)', borderRadius: '6px', padding: '3px', boxSizing: 'border-box' }}>
+            <button
+              onClick={() => setAreaFilter('global')}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                background: areaFilter === 'global' ? '#8B5E34' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                color: areaFilter === 'global' ? '#F4E8C1' : '#B3A387',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontFamily: "'MedievalSharp', serif",
+                textTransform: 'uppercase',
+                transition: 'all 0.2s'
+              }}
+            >
+              🌍 Global Quests
+            </button>
+            <button
+              onClick={() => setAreaFilter('local')}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                background: areaFilter === 'local' ? '#8B5E34' : 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                color: areaFilter === 'local' ? '#F4E8C1' : '#B3A387',
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontFamily: "'MedievalSharp', serif",
+                textTransform: 'uppercase',
+                transition: 'all 0.2s',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+              title={`District: ${hero.area || 'My Area'}`}
+            >
+              📍 My District ({hero.area || 'Local'})
+            </button>
+          </div>
+
           <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
-            {missions.filter(m => m.status !== 'completed').map(m => (
-              <div key={m.id} className="parchment-card">
-                <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
-                  {getIllustration(m.type, false)}
-                </div>
+            {(() => {
+              const list = missions
+                .filter(m => m.status !== 'completed')
+                .filter(m => {
+                  if (areaFilter === 'local') {
+                    const userArea = (hero.area || '').toLowerCase().trim();
+                    if (!userArea) return true;
+                    const isMatchArea = (m.reporterArea || '').toLowerCase().includes(userArea);
+                    const isMatchLoc = (m.location || '').toLowerCase().includes(userArea);
+                    return isMatchArea || isMatchLoc;
+                  }
+                  return true;
+                });
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.aiAnalysis?.missionTitle || m.title}
-                  </h4>
-                  <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span>Distance: {(m.distance != null ? m.distance : 2.5).toFixed(2)}mi</span>
-                    <span>Severity: {m.aiAnalysis?.severity || (m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Medium')}</span>
-                    {m.aiAnalysis?.recommendedAuthority && (
-                      <span style={{ fontSize: '0.75rem', color: '#8B5E34' }}>Authority: {m.aiAnalysis.recommendedAuthority}</span>
-                    )}
+              if (list.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic', fontWeight: 600 }}>
+                    {areaFilter === 'local' 
+                      ? `No active quests in ${hero.area || 'your district'} yet!` 
+                      : 'All petitions resolved! Return to the Map to report new anomalies.'}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 800, marginTop: '6px' }}>
-                    <Award size={14} />
-                    <span>Reward: {m.aiAnalysis?.estimatedReward || 0} XP</span>
+                );
+              }
+
+              return list.map(m => (
+                <div key={m.id} className="parchment-card">
+                  <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
+                    {getIllustration(m.type, false)}
                   </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.aiAnalysis?.missionTitle || m.title}
+                    </h4>
+                    <div style={{ fontSize: '0.8rem', color: '#5C4A38', fontWeight: 600, marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span>Distance: {(m.distance != null ? m.distance : 2.5).toFixed(2)}mi</span>
+                      <span>Severity: {m.aiAnalysis?.severity || (m.severity ? m.severity.charAt(0).toUpperCase() + m.severity.slice(1) : 'Medium')}</span>
+                      {m.aiAnalysis?.recommendedAuthority && (
+                        <span style={{ fontSize: '0.75rem', color: '#8B5E34' }}>Authority: {m.aiAnalysis.recommendedAuthority}</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 800, marginTop: '6px' }}>
+                      <Award size={14} />
+                      <span>Reward: {m.aiAnalysis?.estimatedReward || 0} XP</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenDetails(m)}
+                    className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
+                    style={{ flexShrink: 0 }}
+                  >
+                    {m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept'}
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => handleOpenDetails(m)}
-                  className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
-                  style={{ flexShrink: 0 }}
-                >
-                  {m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept'}
-                </button>
-              </div>
-            ))}
-
-            {missions.filter(m => m.status !== 'completed').length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic' }}>
-                All petitions resolved! Return to the Map to report new anomalies.
-              </div>
-            )}
+              ));
+            })()}
           </div>
         </div>
       )}
