@@ -712,6 +712,23 @@ export default function Missions() {
           border: 3px solid #7E2A2A;
           box-shadow: 0 4px 0 #7E2A2A, 0 5px 10px rgba(0,0,0,0.5);
         }
+        
+        /* Custom scrollbar to match the app theme */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: rgba(45, 27, 19, 0.3);
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #8B5E34;
+          border-radius: 4px;
+          border: 1px solid #5C4033;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #A87C54;
+        }
       `}</style>
 
       {/* ── VIEW 1: MISSION CENTER (LIST) ─────────────────────────── */}
