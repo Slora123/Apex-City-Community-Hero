@@ -435,6 +435,23 @@ export default function Heatmap() {
           overflow-y: auto;
         }
 
+        /* Custom brown scrollbar matching the app theme */
+        .parchment-container::-webkit-scrollbar {
+          width: 8px;
+        }
+        .parchment-container::-webkit-scrollbar-track {
+          background: rgba(45, 27, 19, 0.12);
+          border-radius: 4px;
+        }
+        .parchment-container::-webkit-scrollbar-thumb {
+          background: #8B5E34;
+          border-radius: 4px;
+          border: 1.5px solid #5C4033;
+        }
+        .parchment-container::-webkit-scrollbar-thumb:hover {
+          background: #A87C54;
+        }
+
         .filter-pill {
           padding: 4px 8px;
           border-radius: 20px;
