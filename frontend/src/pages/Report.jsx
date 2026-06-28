@@ -56,32 +56,32 @@ export default function Report() {
   const [locationStatus, setLocationStatus] = useState('Locating...');
   const [testingMode, setTestingMode] = useState(false);
 
-  // Ask for geolocation and reverse geocode when page starts, with IP fallback
-  useEffect(() => {
-    const fetchIPLocation = async () => {
-      try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        if (data && data.latitude && data.longitude) {
-          const lat = data.latitude;
-          const lng = data.longitude;
-          setCoords({ lat, lng });
-          setHasLocation(true);
+  const fetchIPLocation = async () => {
+    try {
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+      if (data && data.latitude && data.longitude) {
+        const lat = data.latitude;
+        const lng = data.longitude;
+        setCoords({ lat, lng });
+        setHasLocation(true);
 
-          const city = data.city || '';
-          const region = data.region || '';
-          const country = data.country_name || '';
-          const cleanAddress = [city, region, country].filter(Boolean).join(', ');
-          setAddress(cleanAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-        } else {
-          setAddress('Coordinates Unknown');
-        }
-      } catch (err) {
-        console.error("IP Geolocation fallback failed:", err);
+        const city = data.city || '';
+        const region = data.region || '';
+        const country = data.country_name || '';
+        const cleanAddress = [city, region, country].filter(Boolean).join(', ');
+        setAddress(cleanAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      } else {
         setAddress('Coordinates Unknown');
       }
-    };
+    } catch (err) {
+      console.error("IP Geolocation fallback failed:", err);
+      setAddress('Coordinates Unknown');
+    }
+  };
 
+  const refreshLocation = () => {
+    setAddress('Detecting location...');
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -98,7 +98,16 @@ export default function Report() {
             if (data && data.display_name) {
               const parts = data.display_name.split(',').map(p => p.trim());
               const preciseAddress = parts.slice(0, 3).join(', ');
-              setAddress(preciseAddress || data.display_name);
+
+              // Get district programmatically
+              const addr = data.address || {};
+              const districtName = addr.district || addr.county || addr.state_district || addr.city_district || addr.city || addr.town || addr.suburb || '';
+
+              let finalAddress = preciseAddress;
+              if (districtName && !preciseAddress.toLowerCase().includes(districtName.toLowerCase())) {
+                finalAddress = `${preciseAddress}, ${districtName}`;
+              }
+              setAddress(finalAddress);
             } else {
               setAddress(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
             }
@@ -116,6 +125,11 @@ export default function Report() {
     } else {
       fetchIPLocation();
     }
+  };
+
+  // Ask for geolocation and reverse geocode when page starts, with IP fallback
+  useEffect(() => {
+    refreshLocation();
   }, []);
 
   // States
@@ -517,7 +531,29 @@ export default function Report() {
 
         {/* User Location Display */}
         <div className="scroll-location-container">
-          <label className="scroll-location-label">Location</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <label className="scroll-location-label">Location</label>
+            <button
+              type="button"
+              onClick={refreshLocation}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#5a4b3d',
+                fontSize: '0.75rem',
+                fontWeight: 900,
+                cursor: 'pointer',
+                fontFamily: "'MedievalSharp', serif",
+                textDecoration: 'underline',
+                padding: '0 4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              🔄 Refresh
+            </button>
+          </div>
           <div className="scroll-location-display" title={address || 'Detecting location...'}>
             {address || 'Detecting location...'}
           </div>
