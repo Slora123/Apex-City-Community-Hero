@@ -39,7 +39,7 @@ export default function TopNav() {
         <img 
           src={getAvatarUrl(hero.avatar)} 
           alt="Avatar" 
-          style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid var(--accent-color)' }}
+          style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid var(--accent-color)', objectFit: 'cover' }}
         />
         <div>
           <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{hero.name}</div>

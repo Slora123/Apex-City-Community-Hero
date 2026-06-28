@@ -642,6 +642,8 @@ export default function Report() {
           <div style={{
             maxWidth: '440px',
             width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
@@ -653,8 +655,34 @@ export default function Report() {
             color: '#3e2723',
             padding: '40px 32px',
             boxShadow: '0 15px 40px rgba(0,0,0,0.8), inset 0 0 45px rgba(139,94,52,0.18)',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            position: 'relative'
           }}>
+            {/* Close Button */}
+            <button 
+              onClick={() => {
+                setShowSuccess(false);
+                setSelectedFile(null);
+                setSketchUrl(null);
+                setIsUploaded(false);
+                setIsVideo(false);
+              }}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: '12px',
+                background: 'transparent',
+                border: 'none',
+                color: '#5C4033',
+                fontSize: '24px',
+                cursor: 'pointer',
+                lineHeight: 1,
+                padding: '4px'
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
             <div style={{
               width: '64px',
               height: '64px',
