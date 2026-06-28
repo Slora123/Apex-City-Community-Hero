@@ -14,7 +14,12 @@ import {
   Clock,
   X,
   Activity,
-  MapPin
+  MapPin,
+  RefreshCw,
+  Swords,
+  Megaphone,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 
 /* ── NAV ITEMS ───────────────────────────────────────────── */
@@ -275,7 +280,7 @@ export default function Report() {
           errorMsg.toLowerCase().includes('not a civic');
         setSubmitError(
           isInvalidImage
-            ? '🚫 Our AI Oracle could not verify this as a civic issue. Please upload a clear photo of an actual public problem (pothole, garbage, broken streetlight, etc.).'
+            ? 'Our AI Oracle could not verify this as a civic issue. Please upload a clear photo of an actual public problem (pothole, garbage, broken streetlight, etc.).'
             : `Could not file your petition: ${errorMsg}`
         );
       }, 2800);
@@ -544,14 +549,23 @@ export default function Report() {
                 fontWeight: 900,
                 cursor: 'pointer',
                 fontFamily: "'MedievalSharp', serif",
-                textDecoration: 'underline',
-                padding: '0 4px',
+                padding: '2px 6px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '3px'
+                gap: '4px',
+                borderRadius: '4px',
+                transition: 'all 0.2s',
+                outline: 'none'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(90, 75, 61, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
-              🔄 Refresh
+              <RefreshCw size={12} />
+              Refresh
             </button>
           </div>
           <div className="scroll-location-display" title={address || 'Detecting location...'}>
@@ -600,7 +614,7 @@ export default function Report() {
           marginTop: '10px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
         }}>
-          <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>⚠️</span>
+          <AlertTriangle size={20} style={{ color: '#FFF', flexShrink: 0, marginTop: '2px' }} />
           <div>
             <div style={{ fontFamily: "'MedievalSharp', serif", fontWeight: 'bold', color: '#FFF', fontSize: '0.9rem', marginBottom: '4px' }}>
               Petition Denied by Oracle
@@ -611,8 +625,10 @@ export default function Report() {
           </div>
           <button
             onClick={() => setSubmitError('')}
-            style={{ background: 'none', border: 'none', color: '#FFF', cursor: 'pointer', fontSize: '1.1rem', marginLeft: 'auto', flexShrink: 0, padding: '0 4px' }}
-          >✕</button>
+            style={{ background: 'none', border: 'none', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto', flexShrink: 0, padding: '0 4px', outline: 'none' }}
+          >
+            <X size={18} />
+          </button>
         </div>
       )}
 
@@ -840,8 +856,12 @@ export default function Report() {
                 marginBottom: '10px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '1.2rem' }}>
-                    {submitDetails.reportOrder >= 3 ? '⚔️' : '📢'}
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: submitDetails.reportOrder >= 3 ? '#2E6B2A' : '#8B5E34' }}>
+                    {submitDetails.reportOrder >= 3 ? (
+                      <Swords size={20} />
+                    ) : (
+                      <Megaphone size={18} />
+                    )}
                   </span>
                   <span style={{ fontWeight: 'bold', fontSize: '0.95rem', color: submitDetails.reportOrder >= 3 ? '#2E6B2A' : '#8B5E34', fontFamily: "'Georgia', serif" }}>
                     {submitDetails.reportOrder === 1 
