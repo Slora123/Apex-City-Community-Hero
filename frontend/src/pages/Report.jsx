@@ -106,7 +106,11 @@ export default function Report() {
 
               // Get district programmatically
               const addr = data.address || {};
-              const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
+              // Prioritize village/taluka level over district level
+              const districtName = addr.village || addr.hamlet || addr.town || addr.suburb
+                                || addr.quarter || addr.county || addr.city_district
+                                || addr.city || addr.state_district || addr.district || '';
+
 
               let finalAddress = preciseAddress;
               if (districtName && !preciseAddress.toLowerCase().includes(districtName.toLowerCase())) {

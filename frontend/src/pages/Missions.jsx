@@ -195,7 +195,10 @@ export default function Missions() {
             .then(data => {
               if (data && data.address) {
                 const addr = data.address;
-                const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
+                // Prioritize village/taluka level over district level
+                const districtName = addr.village || addr.hamlet || addr.town || addr.suburb
+                                  || addr.quarter || addr.county || addr.city_district
+                                  || addr.city || addr.state_district || addr.district || '';
                 if (districtName) {
                   setCurrentDistrict(districtName);
                 }
