@@ -837,7 +837,9 @@ export default function Missions() {
                       const userCity = (hero.city || '').toLowerCase();
                       return userArea.includes('vasai') || userArea.includes('virar') || userCity.includes('vasai') || userCity.includes('virar');
                     }
-                    
+                    // Always show my other issues in my Local tab
+                    if (isMyIssue) return true;
+
                     // Match the entire district as local (e.g. Alibag issues are local for Raigad users)
                     const userArea = (hero.area || '').toLowerCase().trim();
                     const userCity = (hero.city || '').toLowerCase().trim();
@@ -855,7 +857,7 @@ export default function Missions() {
                     if (isUserInRaigad && isIssueInRaigad) return true;
                     if (isUserInVasai && isIssueInVasai) return true;
 
-                    // Fallback to basic string match
+                    // Fallback to basic string match (works for any city/location globally)
                     const isMatchArea = userArea && mRepArea.includes(userArea);
                     const isMatchLoc = userArea && mLoc.includes(userArea);
                     return isMatchArea || isMatchLoc;
