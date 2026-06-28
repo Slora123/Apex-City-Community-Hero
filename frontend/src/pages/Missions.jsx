@@ -818,14 +818,32 @@ export default function Missions() {
               const list = missions
                 .filter(m => m.status !== 'completed')
                 .filter(m => {
-                  if (areaFilter === 'local') {
+                  const isMyIssue = m.reporterId === hero.id;
+                  const isDirtyNeighbourhood = 
+                    m.category === 'Large Scale Public Waste Accumulation' || 
+                    m.type === 'waste' ||
+                    (m.title && m.title.toLowerCase().includes('waste')) ||
+                    (m.description && m.description.toLowerCase().includes('waste'));
+
+                  if (areaFilter === 'global') {
+                    // Show all issues except my issues, but still show the dirty neighbourhood one
+                    if (isMyIssue && !isDirtyNeighbourhood) return false;
+                    return true;
+                  } else {
+                    // Local view
+                    if (isDirtyNeighbourhood) {
+                      // Only show dirty neighbourhood in local view if user's district is Vasai-Virar
+                      const userArea = (hero.area || '').toLowerCase();
+                      return userArea.includes('vasai') || userArea.includes('virar');
+                    }
+                    
+                    // For other issues, show if they match user's area
                     const userArea = (hero.area || '').toLowerCase().trim();
                     if (!userArea) return true;
                     const isMatchArea = (m.reporterArea || '').toLowerCase().includes(userArea);
                     const isMatchLoc = (m.location || '').toLowerCase().includes(userArea);
                     return isMatchArea || isMatchLoc;
                   }
-                  return true;
                 });
 
               if (list.length === 0) {

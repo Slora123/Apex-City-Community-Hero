@@ -31,6 +31,7 @@ router.get('/', optionalAuth, async (req, res) => {
              i.title as issue_title, i.type as issue_type, i.category, i.severity,
              i.lat as issue_lat, i.lng as issue_lng, i.address, i.description,
              i.photo_path, i.reporter_count, i.status as issue_status, i.ai_analysis,
+             i.reporter_id as reporter_id,
              u.name as assignee_name, reporter.area as reporter_area
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
