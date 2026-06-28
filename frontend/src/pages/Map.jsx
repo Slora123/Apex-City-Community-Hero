@@ -117,7 +117,11 @@ export default function MapPage() {
   };
 
   const avatarUrl = hero?.avatar || 'male';
-  const iframeSrc = `/map.html?avatar=${encodeURIComponent(avatarUrl)}`;
+  let cleanAvatar = 'male';
+  if (avatarUrl === 'female' || avatarUrl.includes('avtar2') || avatarUrl.includes('female')) {
+    cleanAvatar = 'female';
+  }
+  const iframeSrc = `/map.html?avatar=${encodeURIComponent(cleanAvatar)}`;
 
   const ai = acceptedMission?.issueData?.aiAnalysis || {};
   const issueTitle = ai.missionTitle || acceptedMission?.issueData?.title || 'Civic Mission';
