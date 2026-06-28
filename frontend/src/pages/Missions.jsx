@@ -178,16 +178,35 @@ export default function Missions() {
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
   const [areaFilter, setAreaFilter] = useState('global'); // 'global' | 'local'
-
-  // Fetch nearby missions once on mount
+  const [currentDistrict, setCurrentDistrict] = useState(hero.area || 'My Area');
+ 
+  // Fetch nearby missions once on mount and geocode current district
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => refreshMissions(pos.coords.latitude, pos.coords.longitude),
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          refreshMissions(lat, lng);
+
+          // Reverse geocode to get current district programmatically
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.address) {
+                const addr = data.address;
+                const districtName = addr.district || addr.county || addr.state_district || addr.city_district || addr.city || addr.town || addr.suburb || '';
+                if (districtName) {
+                  setCurrentDistrict(districtName);
+                }
+              }
+            })
+            .catch(err => console.warn('Could not reverse geocode current district:', err));
+        },
         (err) => console.warn('Could not get location for mission filtering', err)
       );
     }
-  }, [refreshMissions]);
+  }, [refreshMissions, hero.area]);
 
   // Track whether this mission was opened from the map's Accept flow
   const [fromMapAccept, setFromMapAccept] = useState(false);
@@ -807,9 +826,9 @@ export default function Missions() {
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}
-              title={`Local: ${hero.area || 'My Area'}`}
+              title={`Local: ${currentDistrict}`}
             >
-              📍 Local ({hero.area || 'My Area'})
+              📍 Local ({currentDistrict})
             </button>
           </div>
 
@@ -833,7 +852,7 @@ export default function Missions() {
                     // Local view
                     if (isDirtyNeighbourhood) {
                       // Only show dirty neighbourhood in local view if user's district is Vasai-Virar
-                      const userArea = (hero.area || '').toLowerCase();
+                      const userArea = currentDistrict.toLowerCase();
                       const userCity = (hero.city || '').toLowerCase();
                       return userArea.includes('vasai') || userArea.includes('virar') || userCity.includes('vasai') || userCity.includes('virar');
                     }
@@ -841,7 +860,7 @@ export default function Missions() {
                     if (isMyIssue) return true;
 
                     // Match the entire district as local (e.g. Alibag issues are local for Raigad users)
-                    const userArea = (hero.area || '').toLowerCase().trim();
+                    const userArea = currentDistrict.toLowerCase().trim();
                     const userCity = (hero.city || '').toLowerCase().trim();
                     if (!userArea && !userCity) return true;
 
@@ -879,7 +898,7 @@ export default function Missions() {
                 return (
                   <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic', fontWeight: 600 }}>
                     {areaFilter === 'local' 
-                      ? `No active quests in ${hero.area || 'your area'} yet!` 
+                      ? `No active quests in ${currentDistrict} yet!` 
                       : 'All petitions resolved! Return to the Map to report new anomalies.'}
                   </div>
                 );
