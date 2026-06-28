@@ -207,4 +207,12 @@ export async function healthCheck() {
   return res.json();
 }
 
+export async function getHeatmapData(city) {
+  return api.get(`/heatmap?city=${encodeURIComponent(city)}`);
+}
+
+export async function getHeatmapInsights(city) {
+  return api.get(`/heatmap/insights?city=${encodeURIComponent(city)}`);
+}
+
 export default api;

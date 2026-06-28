@@ -1,43 +1,323 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import {
-  Shield,
-  Activity,
   MapPin,
-  Home,
-  Map as MapIcon,
-  CheckSquare,
-  Scroll,
-  Trophy,
   X,
   Clock,
-  ArrowRight
+  Sparkles,
+  RefreshCw,
+  Filter
 } from 'lucide-react';
-
 import BottomNav from '../components/BottomNav';
+import { getHeatmapData, getHeatmapInsights } from '../api';
 
 export default function Heatmap() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { missions } = useGame();
+  const { hero } = useGame();
+  
+  const city = hero.city || 'Vasai';
 
-  const [selectedDistrict, setSelectedDistrict] = useState(null);
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [insights, setInsights] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [loadingInsights, setLoadingInsights] = useState(true);
+  
+  const [selectedTypes, setSelectedTypes] = useState({
+    'Pothole': true,
+    'Water Leakage': true,
+    'Garbage': true,
+    'Streetlights': true,
+    'Infrastructure': true
+  });
+  
+  const [timeFilter, setTimeFilter] = useState('all'); // 'today', 'week', 'month', 'all'
+  const [mapInstance, setMapInstance] = useState(null);
+  const [googleLoaded, setGoogleLoaded] = useState(false);
+  
+  const mapRef = useRef(null);
+  const heatmapLayerRef = useRef(null);
+  const markersRef = useRef([]);
 
-  const getDistrictMissions = (districtName) => {
-    return missions.filter(m => m.location === districtName);
+  // Fetch heatmap data and insights
+  const fetchData = async () => {
+    setLoadingData(true);
+    setLoadingInsights(true);
+    try {
+      const data = await getHeatmapData(city);
+      setHeatmapData(data);
+    } catch (err) {
+      console.error('Error fetching heatmap data:', err);
+    } finally {
+      setLoadingData(false);
+    }
+
+    try {
+      const insightsData = await getHeatmapInsights(city);
+      setInsights(insightsData.insights || []);
+    } catch (err) {
+      console.error('Error fetching insights:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
   };
 
-  const getDistrictStatus = (districtName) => {
-    const distMissions = getDistrictMissions(districtName);
-    if (distMissions.length === 0) return 'clear';
-    if (distMissions.some(m => m.status === 'pending')) return 'pending';
-    if (distMissions.some(m => m.status === 'available')) return 'warning';
-    return 'resolved';
+  useEffect(() => {
+    fetchData();
+  }, [city]);
+
+  // Load Google Maps Script
+  useEffect(() => {
+    const loadScript = () => {
+      if (window.google && window.google.maps) {
+        setGoogleLoaded(true);
+        return;
+      }
+      const existingScript = document.getElementById('google-maps-script');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => setGoogleLoaded(true));
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      script.src = `https://maps.googleapis.com/maps/api/js?libraries=visualization`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setGoogleLoaded(true);
+      document.head.appendChild(script);
+    };
+    loadScript();
+  }, []);
+
+  // Initialize Map
+  useEffect(() => {
+    if (!googleLoaded || !mapRef.current || mapInstance) return;
+
+    // Default center (Vasai: 19.3460, 72.8337)
+    let mapCenter = { lat: 19.3460, lng: 72.8337 };
+
+    // Try geocoding city using Nominatim
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          mapCenter = { lat, lng };
+          if (mapInstance) {
+            mapInstance.setCenter(mapCenter);
+          }
+        }
+      })
+      .catch(err => console.warn('Nominatim geocode failed, using defaults', err));
+
+    const mapStyle = [
+      { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
+      { "elementType": "labels.text.stroke", "stylers": [{ "color": "#242f3e" }] },
+      { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
+      {
+        "featureType": "administrative.locality",
+        "elementType": "labels.text.fill",
+        "stylers": [{ "color": "#d59563" }]
+      },
+      {
+        "featureType": "poi",
+        "elementType": "labels.text.fill",
+        "stylers": [{ "color": "#d59563" }]
+      },
+      {
+        "featureType": "poi.park",
+        "elementType": "geometry",
+        "stylers": [{ "color": "#263c3f" }]
+      },
+      {
+        "featureType": "poi.park",
+        "elementType": "labels.text.fill",
+        "stylers": [{ "color": "#6b9a76" }]
+      },
+      {
+        "featureType": "road",
+        "elementType": "geometry",
+        "stylers": [{ "color": "#38414e" }]
+      },
+      {
+        "featureType": "road",
+        "elementType": "geometry.stroke",
+        "stylers": [{ "color": "#212a37" }]
+      },
+      {
+        "featureType": "road.text.fill",
+        "stylers": [{ "color": "#9ca5b3" }]
+      },
+      {
+        "featureType": "road.highway",
+        "elementType": "geometry",
+        "stylers": [{ "color": "#746855" }]
+      },
+      {
+        "featureType": "road.highway",
+        "elementType": "geometry.stroke",
+        "stylers": [{ "color": "#1f282d" }]
+      },
+      {
+        "featureType": "road.highway",
+        "elementType": "labels.text.fill",
+        "stylers": [{ "color": "#f3d19c" }]
+      },
+      {
+        "featureType": "water",
+        "elementType": "geometry",
+        "stylers": [{ "color": "#17263c" }]
+      },
+      {
+        "featureType": "water",
+        "elementType": "labels.text.fill",
+        "stylers": [{ "color": "#515c6d" }]
+      },
+      {
+        "featureType": "water",
+        "elementType": "labels.text.stroke",
+        "stylers": [{ "color": "#17263c" }]
+      }
+    ];
+
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: mapCenter,
+      zoom: 14,
+      styles: mapStyle,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false
+    });
+
+    setMapInstance(map);
+  }, [googleLoaded, city]);
+
+  // Update Heatmap Layer and Markers when data or filters change
+  useEffect(() => {
+    if (!mapInstance || !googleLoaded) return;
+
+    // Filter data
+    const filtered = heatmapData.filter(issue => {
+      // Type filter
+      if (!selectedTypes[issue.type]) return false;
+      
+      // Time filter
+      if (timeFilter !== 'all') {
+        const createdDate = new Date(issue.created_at);
+        const now = new Date();
+        const diffTime = Math.abs(now - createdDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (timeFilter === 'today' && diffDays > 1) return false;
+        if (timeFilter === 'week' && diffDays > 7) return false;
+        if (timeFilter === 'month' && diffDays > 30) return false;
+      }
+      
+      return true;
+    });
+
+    // Clear old markers
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current = [];
+
+    // Map intensity calculations
+    const getSeverityScore = (sev) => {
+      const s = (sev || 'medium').toLowerCase();
+      if (s === 'critical') return 5;
+      if (s === 'high') return 3;
+      if (s === 'medium') return 2;
+      if (s === 'low') return 1;
+      return 2;
+    };
+
+    // Prepare heatmap points
+    const points = filtered.map(issue => {
+      const severityScore = getSeverityScore(issue.severity);
+      const weight = (issue.reports * 2) + severityScore;
+      return {
+        location: new window.google.maps.LatLng(issue.lat, issue.lng),
+        weight: weight
+      };
+    });
+
+    // Update heatmap layer
+    if (heatmapLayerRef.current) {
+      heatmapLayerRef.current.setData(points);
+    } else {
+      heatmapLayerRef.current = new window.google.maps.visualization.HeatmapLayer({
+        data: points,
+        map: mapInstance,
+        radius: 35
+      });
+    }
+
+    // Add markers for individual hotspots
+    const colors = {
+      'Pothole': '#FF0000',
+      'Water Leakage': '#0088FF',
+      'Garbage': '#00CC44',
+      'Streetlights': '#FFCC00',
+      'Infrastructure': '#CC00FF'
+    };
+
+    filtered.forEach(issue => {
+      const color = colors[issue.type] || '#FFF';
+      const severityScore = getSeverityScore(issue.severity);
+      const weight = (issue.reports * 2) + severityScore;
+
+      const marker = new window.google.maps.Marker({
+        position: { lat: issue.lat, lng: issue.lng },
+        map: mapInstance,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 6 + (weight / 5),
+          fillColor: color,
+          fillOpacity: 0.8,
+          strokeColor: '#FFFFFF',
+          strokeWeight: 1.5
+        },
+        title: `${issue.type} - Severity: ${issue.severity}`
+      });
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="color: #2D1B13; font-family: sans-serif; padding: 4px; font-size: 13px;">
+            <b style="font-size: 14px; text-transform: uppercase;">${issue.type} Hotspot</b><br/>
+            <hr style="margin: 4px 0; border: none; border-top: 1px solid #CCC;"/>
+            Severity: <b>${issue.severity}</b><br/>
+            Citizen Reports: <b>${issue.reports}</b><br/>
+            Heat Weight: <b>${weight}</b>
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(mapInstance, marker);
+      });
+
+      markersRef.current.push(marker);
+    });
+
+  }, [heatmapData, selectedTypes, timeFilter, mapInstance, googleLoaded]);
+
+  const toggleType = (type) => {
+    setSelectedTypes(prev => ({
+      ...prev,
+      [type]: !prev[type]
+    }));
   };
 
-  const totalResolved = missions.filter(m => m.status === 'completed').length;
-  const totalActive = missions.filter(m => m.status === 'available' || m.status === 'pending').length;
+  const getPillColor = (type) => {
+    const colors = {
+      'Pothole': '#E53E3E',
+      'Water Leakage': '#3182CE',
+      'Garbage': '#38A169',
+      'Streetlights': '#D69E2E',
+      'Infrastructure': '#805AD5'
+    };
+    return colors[type] || '#5C4033';
+  };
 
   return (
     <div style={{
@@ -56,7 +336,6 @@ export default function Heatmap() {
       color: '#F4E8C1',
       boxSizing: 'border-box'
     }}>
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
         
@@ -102,33 +381,6 @@ export default function Heatmap() {
           z-index: 10;
         }
 
-        .tab-btn {
-          flex: 1;
-          background: #5C4033;
-          border: 2px solid #3E2D24;
-          color: #B3A387;
-          font-family: 'MedievalSharp', serif;
-          font-size: 0.88rem;
-          font-weight: bold;
-          padding: 10px 0;
-          cursor: pointer;
-          transition: all 0.2s;
-          text-transform: uppercase;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-        }
-        .tab-btn--active {
-          background: #F4E8C1;
-          color: #2D1B13;
-          border-color: #5A4B3D;
-          box-shadow: inset 0 0 10px rgba(139,94,52,0.3);
-        }
-        .tab-btn:first-child { border-radius: 8px 0 0 8px; }
-        .tab-btn:nth-child(2) { border-left: none; border-right: none; }
-        .tab-btn:last-child { border-radius: 0 8px 8px 0; }
-
         .parchment-container {
           background: #F4E8C1;
           border: 3px solid #5A4B3D;
@@ -136,26 +388,67 @@ export default function Heatmap() {
           color: #2D1B13;
           padding: 16px 12px;
           box-shadow: inset 0 0 15px rgba(139,94,52,0.25), 0 4px 8px rgba(0,0,0,0.3);
-          max-height: 450px;
+          max-height: 520px;
           overflow-y: auto;
         }
 
-        @keyframes pulse-red {
-          0% { r: 6; opacity: 0.8; }
-          50% { r: 16; opacity: 0.4; }
-          100% { r: 24; opacity: 0; }
+        .filter-pill {
+          padding: 6px 10px;
+          border-radius: 20px;
+          font-size: 0.72rem;
+          font-weight: 800;
+          cursor: pointer;
+          border: 2px solid transparent;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          user-select: none;
         }
-        @keyframes pulse-yellow {
-          0% { r: 6; opacity: 0.8; }
-          50% { r: 14; opacity: 0.4; }
-          100% { r: 20; opacity: 0; }
+
+        .time-tab {
+          flex: 1;
+          background: #EEDC82;
+          border: 1.5px solid #8B5E34;
+          color: #5C4033;
+          font-weight: bold;
+          font-size: 0.75rem;
+          padding: 6px 0;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
         }
-        .heatmap-pulse-red { animation: pulse-red 2s infinite ease-out; }
-        .heatmap-pulse-yellow { animation: pulse-yellow 2s infinite ease-out; }
+        .time-tab--active {
+          background: #8B5E34;
+          color: #F4E8C1;
+          box-shadow: inset 0 2px 5px rgba(0,0,0,0.4);
+        }
+        .time-tab:first-child { border-radius: 6px 0 0 6px; }
+        .time-tab:last-child { border-radius: 0 6px 6px 0; }
+        
+        .insight-card {
+          background: rgba(255, 255, 255, 0.45);
+          border-left: 4px solid #8B5E34;
+          border-radius: 4px;
+          padding: 8px 12px;
+          font-size: 0.82rem;
+          line-height: 1.4;
+          color: #2D1B13;
+          font-style: italic;
+          font-weight: 600;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .spin {
+          animation: spin 1s linear infinite;
+        }
       `}</style>
 
       <div className="wood-panel" style={{ marginTop: '24px' }}>
-        
         <div className="stone-header">
           <MapPin size={18} strokeWidth={2.5} />
           <span className="medieval-font">District Heatmap</span>
@@ -178,166 +471,110 @@ export default function Heatmap() {
           <X size={26} />
         </button>
 
-
-
         <div className="parchment-container" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ textAlign: 'center', fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', borderBottom: '2.5px solid #5A4B3D', paddingBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Interactive Anomaly Densities
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2.5px solid #5A4B3D', paddingBottom: '8px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Realtime Anomaly Densities ({city})
+            </span>
+            <button 
+              onClick={fetchData} 
+              style={{ background: 'transparent', border: 'none', color: '#5A4B3D', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 'bold' }}
+            >
+              <RefreshCw size={10} className={loadingData ? 'spin' : ''} /> Refresh
+            </button>
           </div>
 
-          {/* HEATMAP SCHEMA INTERACTIVE SVG */}
-          <div style={{ background: '#EEDC82', border: '3.5px double #8B5E34', borderRadius: '10px', padding: '6px', boxShadow: 'inset 0 0 15px rgba(0,0,0,0.15)', position: 'relative' }}>
-            
-            <svg viewBox="0 0 400 300" width="100%">
-              <rect x="180" y="20" width="40" height="260" fill="#E6D3B3" />
-              <rect x="40" y="130" width="320" height="40" fill="#E6D3B3" />
-              
-              <path d="M0,240 C100,240 150,180 200,180 C250,180 300,260 400,260 L400,285 L0,285 Z" fill="#4CC9F0" opacity="0.45" />
-              <text x="80" y="270" fill="#2B4E6B" fontSize="9" fontWeight="bold" fontStyle="italic" opacity="0.6">Glistening Stream</text>
-
-              {/* Districts */}
-              <rect x="170" y="120" width="60" height="60" rx="6" fill="#D2B48C" stroke="#8B7E66" strokeWidth="2.5" />
-              <text x="200" y="154" fill="#3E2723" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="'MedievalSharp', serif">Market</text>
-
-              <circle cx="90" cy="80" r="28" fill="#B2C9A8" stroke="#8B7E66" strokeWidth="2" />
-              <text x="90" y="83" fill="#3E2723" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="'MedievalSharp', serif">Fountain</text>
-
-              <rect x="270" y="190" width="55" height="42" rx="4" fill="#C0A98F" stroke="#8B7E66" strokeWidth="2" />
-              <text x="297" y="214" fill="#3E2723" fontSize="7" fontWeight="bold" textAnchor="middle" fontFamily="'MedievalSharp', serif">Blacksmith</text>
-
-              <polygon points="290,90 330,90 310,60" fill="#9C512A" stroke="#8B7E66" strokeWidth="2" />
-              <rect x="290" y="90" width="40" height="25" fill="#C0A98F" stroke="#8B7E66" strokeWidth="2" />
-              <text x="310" y="105" fill="#3E2723" fontSize="8" fontWeight="bold" textAnchor="middle" fontFamily="'MedievalSharp', serif">Guild Hall</text>
-
-              {/* Heatspots */}
-              {['warning', 'pending'].includes(getDistrictStatus('Market Square')) && (
-                <g onClick={() => setSelectedDistrict('Market Square')} style={{ cursor: 'pointer' }}>
-                  <circle cx="200" cy="150" r="18" fill="#B53F3F" opacity="0.3" className="heatmap-pulse-red" />
-                  <circle cx="200" cy="150" r="8" fill="#B53F3F" stroke="#FFF" strokeWidth="1.5" />
-                </g>
+          {/* GOOGLE MAP LAYER */}
+          <div style={{ position: 'relative', width: '100%', height: '240px', background: '#242f3e', borderRadius: '10px', overflow: 'hidden', border: '3.5px double #8B5E34' }}>
+            <div ref={mapRef} style={{ width: '100%', height: '100%' }}>
+              {!googleLoaded && (
+                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#B3A387', fontSize: '0.85rem' }}>
+                  Loading Google Maps...
+                </div>
               )}
- 
-              {['warning', 'pending'].includes(getDistrictStatus('Fountain Plaza')) && (
-                <g onClick={() => setSelectedDistrict('Fountain Plaza')} style={{ cursor: 'pointer' }}>
-                  <circle cx="90" cy="80" r="14" fill="#ECC94B" opacity="0.3" className="heatmap-pulse-yellow" />
-                  <circle cx="90" cy="80" r="8" fill="#ECC94B" stroke="#FFF" strokeWidth="1.5" />
-                </g>
-              )}
- 
-              {['warning', 'pending'].includes(getDistrictStatus('Blacksmith Lane')) && (
-                <g onClick={() => setSelectedDistrict('Blacksmith Lane')} style={{ cursor: 'pointer' }}>
-                  <circle cx="297" cy="210" r="18" fill="#B53F3F" opacity="0.3" className="heatmap-pulse-red" />
-                  <circle cx="297" cy="210" r="8" fill="#B53F3F" stroke="#FFF" strokeWidth="1.5" />
-                </g>
-              )}
-
-              {/* Inspect Buttons */}
-              <g onClick={() => setSelectedDistrict('Market Square')} style={{ cursor: 'pointer' }}>
-                <rect x="175" y="115" width="50" height="12" rx="3" fill="#2E2018" opacity="0.8" />
-                <text x="200" y="124" fill="#FFF" fontSize="6.5" fontWeight="bold" textAnchor="middle">Inspect</text>
-              </g>
-              <g onClick={() => setSelectedDistrict('Fountain Plaza')} style={{ cursor: 'pointer' }}>
-                <rect x="65" y="45" width="50" height="12" rx="3" fill="#2E2018" opacity="0.8" />
-                <text x="90" y="54" fill="#FFF" fontSize="6.5" fontWeight="bold" textAnchor="middle">Inspect</text>
-              </g>
-              <g onClick={() => setSelectedDistrict('Blacksmith Lane')} style={{ cursor: 'pointer' }}>
-                <rect x="272" y="172" width="50" height="12" rx="3" fill="#2E2018" opacity="0.8" />
-                <text x="297" y="181" fill="#FFF" fontSize="6.5" fontWeight="bold" textAnchor="middle">Inspect</text>
-              </g>
-            </svg>
+            </div>
           </div>
 
-          {/* District details */}
-          {selectedDistrict ? (
-            <div style={{
-              background: '#EEDC82',
-              border: '2.5px solid #8B5E34',
-              borderRadius: '8px',
-              padding: '12px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              color: '#2D1B13'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px dashed rgba(90,75,61,0.3)', paddingBottom: '6px', marginBottom: '8px' }}>
-                <span className="medieval-font" style={{ fontWeight: 900, fontSize: '1.05rem' }}>
-                  {selectedDistrict} District
-                </span>
-                <button
-                  onClick={() => setSelectedDistrict(null)}
-                  style={{ background: 'transparent', border: 'none', color: '#5C4033', fontWeight: 'bold', cursor: 'pointer' }}
+          {/* CATEGORY FILTERS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Filter size={11} /> Filter By Category
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {Object.keys(selectedTypes).map(type => {
+                const active = selectedTypes[type];
+                const activeColor = getPillColor(type);
+                return (
+                  <div
+                    key={type}
+                    onClick={() => toggleType(type)}
+                    className="filter-pill"
+                    style={{
+                      backgroundColor: active ? activeColor : 'rgba(90, 75, 61, 0.15)',
+                      color: active ? '#FFF' : '#5A4B3D',
+                      borderColor: active ? activeColor : 'rgba(90, 75, 61, 0.3)'
+                    }}
+                  >
+                    <span>{type === 'Pothole' ? '🔴' : type === 'Water Leakage' ? '🔵' : type === 'Garbage' ? '🟢' : type === 'Streetlights' ? '🟡' : '🟣'}</span>
+                    <span>{type}s</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* TIME TABS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#5A4B3D', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Clock size={11} /> Time Horizon
+            </div>
+            <div style={{ display: 'flex', width: '100%' }}>
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'This Week' },
+                { id: 'month', label: 'This Month' },
+                { id: 'all', label: 'All Time' }
+              ].map(tab => (
+                <div
+                  key={tab.id}
+                  onClick={() => setTimeFilter(tab.id)}
+                  className={`time-tab ${timeFilter === tab.id ? 'time-tab--active' : ''}`}
                 >
-                  <X size={16} />
-                </button>
-              </div>
+                  {tab.label}
+                </div>
+              ))}
+            </div>
+          </div>
 
+          {/* AI PREDICTION INSIGHTS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '2px dashed rgba(90, 75, 61, 0.3)', paddingTop: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#2B6CB0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Sparkles size={13} fill="#2B6CB0" /> AI Predictive Insights
+              </div>
+              <span style={{ fontSize: '0.62rem', fontWeight: 900, background: '#2B6CB0', color: '#FFF', padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase' }}>Gemini powered</span>
+            </div>
+
+            {loadingInsights ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ height: '35px', background: 'rgba(90, 75, 61, 0.1)', borderRadius: '4px', animation: 'pulse 1.5s infinite ease-in-out' }}></div>
+                <div style={{ height: '35px', background: 'rgba(90, 75, 61, 0.1)', borderRadius: '4px', animation: 'pulse 1.5s infinite ease-in-out' }}></div>
+              </div>
+            ) : insights.length === 0 ? (
+              <span style={{ fontStyle: 'italic', fontSize: '0.78rem', color: '#5C4A38' }}>No predictive insights compiled yet.</span>
+            ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {getDistrictMissions(selectedDistrict).length === 0 ? (
-                  <span style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#5C4A38' }}>
-                    No active anomalies cataloged in this district!
-                  </span>
-                ) : (
-                  getDistrictMissions(selectedDistrict).map(m => {
-                    let badgeColor = '#E53E3E';
-                    let statusText = 'Active Anomaly';
-                    if (m.status === 'pending') {
-                      badgeColor = '#ECC94B';
-                      statusText = 'Pending Verify';
-                    } else if (m.status === 'completed') {
-                      badgeColor = '#48BB78';
-                      statusText = 'Resolved';
-                    }
-
-                    return (
-                      <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'rgba(255,255,255,0.4)', borderRadius: '6px', padding: '6px 8px', border: '1px solid rgba(139,94,52,0.25)' }}>
-                        <span style={{ fontWeight: 800 }}>{m.title}</span>
-                        <span style={{
-                          background: badgeColor,
-                          color: badgeColor === '#ECC94B' ? '#5C4033' : '#FFF',
-                          fontSize: '0.65rem',
-                          fontWeight: 900,
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          textTransform: 'uppercase'
-                        }}>
-                          {statusText}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
+                {insights.map((insight, idx) => (
+                  <div key={idx} className="insight-card">
+                    {insight}
+                  </div>
+                ))}
               </div>
-
-              {getDistrictMissions(selectedDistrict).some(m => m.status === 'pending') && (
-                <button
-                  onClick={() => navigate('/authority')}
-                  style={{
-                    width: '100%',
-                    marginTop: '10px',
-                    background: '#2E6B2A',
-                    color: '#FFF',
-                    border: '1.5px solid #1C4519',
-                    borderRadius: '6px',
-                    padding: '8px',
-                    fontSize: '0.8rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <span>Inspect Pending Verifications</span>
-                  <ArrowRight size={13} />
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#5C4A38', fontStyle: 'italic', fontWeight: 600 }}>
-              Tap any glowing hotspot or label to inspect active anomalies.
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
+        {/* ALERTS SUMMARY FOOTER */}
         <div style={{
           marginTop: '16px',
           display: 'flex',
@@ -348,16 +585,15 @@ export default function Heatmap() {
           borderTop: '2.5px solid #5C4033',
           paddingTop: '12px'
         }}>
-          <span>Active Alerts: {totalActive}</span>
+          <span>Hotspots Monitored: {loadingData ? '...' : heatmapData.length}</span>
           <span style={{ color: '#ECC94B', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Clock size={16} />
-            <span>Resolving Rate: {missions.length > 0 ? Math.round((totalResolved / missions.length) * 100) : 0}%</span>
+            <span>Updates: Realtime</span>
           </span>
         </div>
       </div>
 
       <BottomNav />
-
     </div>
   );
 }

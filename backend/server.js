@@ -106,6 +106,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/achievements', require('./routes/achievements'));
+app.use('/api/heatmap', require('./routes/heatmap'));
 
 // ── 404 Handler ───────────────────────────────────────────────────────────
 app.use('/api/*', (req, res) => {
