@@ -5,6 +5,18 @@
     <link rel="icon" type="image/png" href="/logo.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Apex City - Community Hero</title>
+
+    <!-- Preload cursor files so they're cached before CSS needs them -->
+    <link rel="preload" href="/cursors/Cherry Wood (normal select).cur" as="image" type="image/x-win-bitmap" />
+    <link rel="preload" href="/cursors/Cherry Wood (link select).ani" as="image" />
+
+    <!-- Inline cursor rule — fires immediately, before any JS/CSS bundle loads -->
+    <!-- This kills the white-cursor flash at page load -->
+    <style>
+      html, body, * {
+        cursor: url('/cursors/Cherry Wood (normal select).cur'), auto !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
