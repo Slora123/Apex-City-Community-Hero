@@ -457,16 +457,60 @@ export default function Report() {
 
         {/* Media Buttons matching the drawn boxes */}
         <div className="scroll-upload-btn">
-          <button type="button" className="media-btn" onClick={handleUploadClick}>
-            <Camera size={56} strokeWidth={2.5} color="#4A3B32" />
-            <span>Upload</span>
+          <button 
+            type="button" 
+            className="media-btn" 
+            onClick={handleUploadClick}
+            style={selectedFile && !isVideo ? {
+              border: '3px dashed #2E6B2A',
+              borderRadius: '12px',
+              background: 'rgba(46, 107, 42, 0.12)',
+              overflow: 'hidden'
+            } : {}}
+          >
+            {selectedFile && !isVideo ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                <CheckCircle size={38} strokeWidth={2.5} color="#2E6B2A" />
+                <span style={{ fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 900, textTransform: 'uppercase' }}>Attached ✓</span>
+                <span style={{ fontSize: '0.65rem', color: '#3E2723', maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedFile.name}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Camera size={56} strokeWidth={2.5} color="#4A3B32" />
+                <span>Upload</span>
+              </>
+            )}
           </button>
         </div>
 
         <div className="scroll-video-btn">
-          <button type="button" className="media-btn" onClick={handleVideoClick}>
-            <Video size={56} strokeWidth={2.5} color="#4A3B32" />
-            <span>Video</span>
+          <button 
+            type="button" 
+            className="media-btn" 
+            onClick={handleVideoClick}
+            style={selectedFile && isVideo ? {
+              border: '3px dashed #2E6B2A',
+              borderRadius: '12px',
+              background: 'rgba(46, 107, 42, 0.12)',
+              overflow: 'hidden'
+            } : {}}
+          >
+            {selectedFile && isVideo ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                <CheckCircle size={38} strokeWidth={2.5} color="#2E6B2A" />
+                <span style={{ fontSize: '0.85rem', color: '#2E6B2A', fontWeight: 900, textTransform: 'uppercase' }}>Attached ✓</span>
+                <span style={{ fontSize: '0.65rem', color: '#3E2723', maxWidth: '85%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedFile.name}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Video size={56} strokeWidth={2.5} color="#4A3B32" />
+                <span>Video</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -764,13 +808,41 @@ export default function Report() {
               </div>
             )}
 
-            {!submitDetails?.aiAnalysis && (
-              <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
-                <br/><br/>
-                <strong>Issue Type:</strong> {submitDetails?.category || 'Civic Anomaly'}<br/>
-                <strong>Issue Severity:</strong> {submitDetails?.severity ? submitDetails.severity.charAt(0).toUpperCase() + submitDetails.severity.slice(1) : 'Medium'}<br/>
-                <strong>Reporter Status:</strong> {submitDetails?.reportOrder === 1 ? '1st (First Reporter!)' : submitDetails?.reportOrder + (submitDetails?.reportOrder===2?'nd':submitDetails?.reportOrder===3?'rd':'th') + ' Reporter'}
-              </p>
+            {submitDetails && (
+              <div style={{
+                width: '100%',
+                background: submitDetails.reportOrder >= 3 ? 'rgba(46, 107, 42, 0.15)' : 'rgba(212, 175, 55, 0.12)',
+                border: `2px dashed ${submitDetails.reportOrder >= 3 ? '#2E6B2A' : '#D4AF37'}`,
+                borderRadius: '10px',
+                padding: '12px',
+                color: '#3C2D24',
+                textAlign: 'left',
+                boxSizing: 'border-box',
+                marginTop: '10px',
+                marginBottom: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '1.2rem' }}>
+                    {submitDetails.reportOrder >= 3 ? '⚔️' : '📢'}
+                  </span>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.95rem', color: submitDetails.reportOrder >= 3 ? '#2E6B2A' : '#8B5E34', fontFamily: "'Georgia', serif" }}>
+                    {submitDetails.reportOrder === 1 
+                      ? 'First Reporter!' 
+                      : submitDetails.reportOrder === 2 
+                        ? 'Second Reporter!' 
+                        : 'Community Quest Unlocked!'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.8rem', lineHeight: '1.45', color: '#3C2D24', fontWeight: 600 }}>
+                  {submitDetails.reportOrder === 1 ? (
+                    'You are the 1st person to report this anomaly. It is now pending verification. Once 2 more reports are submitted by other citizens, this will unlock as a mission in the Mission Center.'
+                  ) : submitDetails.reportOrder === 2 ? (
+                    'You are the 2nd person to report this anomaly. 1 more report is needed to verify it and unlock it as a mission in the Mission Center.'
+                  ) : (
+                    'You are the 3rd person to report this anomaly! It has been successfully verified by the community and is now active in the Mission Center.'
+                  )}
+                </div>
+              </div>
             )}
 
             <div style={{
