@@ -188,6 +188,9 @@ export default function Missions() {
     }
   }, [refreshMissions]);
 
+  // Track whether this mission was opened from the map's Accept flow
+  const [fromMapAccept, setFromMapAccept] = useState(false);
+
   // Auto-open mission if navigated from map
   useEffect(() => {
     if (location.state?.openIssueId && missions.length > 0) {
@@ -195,12 +198,22 @@ export default function Missions() {
       if (issueToOpen) {
         setSelectedMission(issueToOpen);
         setSeverity(issueToOpen.severity ? issueToOpen.severity.charAt(0).toUpperCase() + issueToOpen.severity.slice(1) : 'Medium');
+        setFromMapAccept(!!location.state?.startVerification);
         setView('details');
         
+        // If startVerification — auto-trigger camera once details loads
+        if (location.state?.startVerification) {
+          setTimeout(() => {
+            setView('capture_before');
+            startCamera();
+          }, 800);
+        }
+
         // Clear state so it doesn't re-open on refresh or back
         window.history.replaceState({}, document.title);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, missions]);
 
   // Verification results
@@ -976,15 +989,18 @@ export default function Missions() {
             ) : (
               <div style={{ display: 'flex', gap: '10px', width: '100%', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                  <button
-                    onClick={() => navigate('/map')}
-                    className="medieval-btn-brown"
-                    style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  >
-                    <Navigation size={15} />
-                    <span>Navigate</span>
-                  </button>
-                  {currentDistance != null && currentDistance > 0.05 ? (
+                  {/* Only show Navigate if NOT opened via map-accept flow AND NOT an Authority-only issue */}
+                  {!fromMapAccept && selectedMission?.aiAnalysis?.handler !== 'Authority' && (
+                    <button
+                      onClick={() => navigate('/map')}
+                      className="medieval-btn-brown"
+                      style={{ flex: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Navigation size={15} />
+                      <span>Navigate</span>
+                    </button>
+                  )}
+                  {currentDistance != null && currentDistance > 0.15 && !fromMapAccept ? (
                     <div style={{ flex: 1, textAlign: 'center', color: '#B53F3F', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       Move closer to solve. ({Math.round(currentDistance * 1000)}m away)
                     </div>

@@ -146,6 +146,123 @@
     .view-toggle-btn:active {
       transform: scale(0.95);
     }
+
+    /* ── Issue Pin Popup ──────────────────────────────── */
+    #issue-popup {
+      display: none;
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: 420px;
+      background: linear-gradient(160deg, #2D1B13 0%, #3e2723 100%);
+      border: 2.5px solid #8B5E34;
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,212,121,0.15);
+      z-index: 200;
+      padding: 18px 18px 14px 18px;
+      font-family: 'Georgia', serif;
+      color: #F4E8C1;
+      animation: popupSlide 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes popupSlide {
+      from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+      to   { transform: translateX(-50%) translateY(0);   opacity: 1; }
+    }
+    #issue-popup .popup-type-badge {
+      display: inline-block;
+      background: rgba(212,175,55,0.2);
+      border: 1px solid #D4AF37;
+      color: #D4AF37;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 10px;
+      border-radius: 99px;
+      margin-bottom: 8px;
+    }
+    #issue-popup .popup-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #F4E8C1;
+      margin: 0 0 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #issue-popup .popup-summary {
+      font-size: 13px;
+      color: #C4A484;
+      margin: 0 0 14px 0;
+      line-height: 1.5;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #issue-popup .popup-meta {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #issue-popup .popup-meta span {
+      background: rgba(255,255,255,0.06);
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #B3A387;
+    }
+    #issue-popup .popup-meta span b {
+      color: #F4E8C1;
+    }
+    #issue-popup .popup-btns {
+      display: flex;
+      gap: 10px;
+    }
+    #issue-popup #btn-accept {
+      flex: 1;
+      padding: 12px 0;
+      background: linear-gradient(to bottom, #3A7A35, #2E6B2A);
+      color: #fff;
+      border: 2px solid #1C4519;
+      border-radius: 10px;
+      font-family: 'Georgia', serif;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #1C4519;
+      transition: all 0.1s;
+      letter-spacing: 0.5px;
+    }
+    #issue-popup #btn-accept:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #1C4519;
+    }
+    #issue-popup #btn-reject {
+      padding: 12px 18px;
+      background: rgba(80,40,20,0.7);
+      color: #C4A484;
+      border: 2px solid #5C4033;
+      border-radius: 10px;
+      font-family: 'Georgia', serif;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+    #issue-popup #btn-reject:active {
+      background: rgba(120,50,20,0.7);
+    }
+    #issue-popup .popup-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: transparent;
+      border: none;
+      color: #8B5E34;
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+    }
   </style>
 </head>
 
@@ -163,6 +280,22 @@
 <!-- Joystick HTML removed -->
     
     <button id="btn-view-mode" class="view-toggle-btn">👤 Third Person</button>
+
+    <!-- Issue Pin Popup -->
+    <div id="issue-popup">
+      <button class="popup-close" id="btn-popup-close" aria-label="Close">✕</button>
+      <div class="popup-type-badge" id="popup-type">Issue</div>
+      <h3 class="popup-title" id="popup-title">Loading…</h3>
+      <p class="popup-summary" id="popup-summary"></p>
+      <div class="popup-meta">
+        <span>⚠️ Severity: <b id="popup-severity">—</b></span>
+        <span>🏆 Reward: <b id="popup-reward">—</b> XP</span>
+      </div>
+      <div class="popup-btns">
+        <button id="btn-accept">⚔️ Accept Mission</button>
+        <button id="btn-reject">✕ Reject</button>
+      </div>
+    </div>
   </div>
 
   <script type="importmap">
@@ -2073,7 +2206,7 @@
                 while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
                 const issueEntry = roadIssues.find(r => r.pin === clickedPin);
                 if (issueEntry && issueEntry.issueData) {
-                  window.parent.postMessage({ type: 'OPEN_ISSUE', issueId: issueEntry.issueData.id }, '*');
+                  showIssuePopup(issueEntry.issueData);
                   return; // Stop processing, don't walk
                 }
               }
@@ -2152,9 +2285,30 @@
         if (e.touches.length < 2) {
           startDist = 0; // reset pinch zoom state
         }
-        // If it was a single tap, move the character to the clicked spot
+        // If it was a single tap, check for pin hit first
         if (e.changedTouches.length === 1 && !touchMoved) {
           const t = e.changedTouches[0];
+          
+          // Check for pin tap
+          const rect = renderer.domElement.getBoundingClientRect();
+          mouse.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
+          mouse.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouse, camera);
+          const pins = roadIssues.map(r => r.pin).filter(Boolean);
+          if (pins.length > 0) {
+            const intersects = raycaster.intersectObjects(pins, true);
+            if (intersects.length > 0) {
+              let clickedPin = intersects[0].object;
+              while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
+              const issueEntry = roadIssues.find(r => r.pin === clickedPin);
+              if (issueEntry && issueEntry.issueData) {
+                showIssuePopup(issueEntry.issueData);
+                return;
+              }
+            }
+          }
+
+          // No pin hit — move character
           const p = groundIntersect(t.clientX, t.clientY);
           if (p && withinCityBounds(p)) {
             resolveAgainstBuildings(p);
@@ -2180,6 +2334,37 @@
       });
 
       /* Joystick JS removed */
+
+      // ─── Issue Popup Logic ───────────────────────────────────────────
+      let currentPopupIssue = null;
+      const issuePopup = document.getElementById('issue-popup');
+
+      function showIssuePopup(issue) {
+        currentPopupIssue = issue;
+        const ai = issue.aiAnalysis || {};
+        document.getElementById('popup-type').textContent = ai.type || issue.type || 'Civic Issue';
+        document.getElementById('popup-title').textContent = ai.missionTitle || issue.title || 'Reported Issue';
+        document.getElementById('popup-summary').textContent = ai.summary || ai.sceneDescription || 'A civic issue needs your help!';
+        document.getElementById('popup-severity').textContent = ai.severity || issue.severity || 'Medium';
+        document.getElementById('popup-reward').textContent = ai.estimatedReward || 50;
+        issuePopup.style.display = 'block';
+      }
+
+      function hideIssuePopup() {
+        issuePopup.style.display = 'none';
+        currentPopupIssue = null;
+      }
+
+      document.getElementById('btn-accept').addEventListener('click', () => {
+        if (currentPopupIssue) {
+          window.parent.postMessage({ type: 'ACCEPT_MISSION', issueId: currentPopupIssue.id, issueData: currentPopupIssue }, '*');
+        }
+        hideIssuePopup();
+      });
+
+      document.getElementById('btn-reject').addEventListener('click', hideIssuePopup);
+      document.getElementById('btn-popup-close').addEventListener('click', hideIssuePopup);
+      // ────────────────────────────────────────────────────────────────
 
       // First-Person Mode Toggle
       let isFirstPerson = true;
