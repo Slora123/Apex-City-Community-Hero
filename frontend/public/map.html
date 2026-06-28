@@ -2310,8 +2310,16 @@
       const lockHintEl  = document.getElementById('lock-hint');
       const pcHintEl    = document.getElementById('pc-hint');
 
-      // Detect if we're on a desktop (non-touch) device
-      const isDesktop = !('ontouchstart' in window) && !navigator.maxTouchPoints;
+      // Robust desktop detection:
+      //   • (pointer: fine)  = real mouse/trackpad  → desktop
+      //   • (pointer: coarse) = finger/stylus touch → mobile/tablet
+      // Also guard with maxTouchPoints for hybrid laptops that report both.
+      const hasFinePointer  = window.matchMedia('(pointer: fine)').matches;
+      const hasCoarseOnly   = window.matchMedia('(pointer: coarse)').matches && !hasFinePointer;
+      const hasTouchScreen  = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+      // We treat as desktop only if: fine pointer AND no touch screen (rules out touch-laptops showing mobile UI)
+      const isDesktop = hasFinePointer && !hasCoarseOnly;
+
       if (isDesktop) {
         lockHintEl.style.display = 'block';
         pcHintEl.style.display   = 'block';
