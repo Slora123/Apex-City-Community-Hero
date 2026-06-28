@@ -27,22 +27,29 @@
 }
 
 /* ── Cherry Wood Custom Cursor Set ───────────────────────────────── */
-/* Default arrow cursor */
-html, body, * {
-  cursor: url('/cursors/Cherry Wood (normal select).cur'), auto;
+/* Base default — !important overrides any inline style="cursor:auto/default" */
+*, *::before, *::after,
+html, body,
+div, span, section, article, aside, header, footer, main, nav,
+canvas, svg, img, video,
+p, h1, h2, h3, h4, h5, h6, li, ul, ol {
+  cursor: url('/cursors/Cherry Wood (normal select).cur'), auto !important;
 }
 
-/* Pointer (links, buttons) */
-a, button, [role="button"], label[for], select,
-[style*="cursor: pointer"], [style*="cursor:pointer"],
-.cursor-pointer {
+/* Pointer — links, buttons, clickable things */
+a, button,
+[role="button"], [role="tab"], [role="menuitem"], [role="option"],
+label[for], select,
+[onClick], [onclick],
+[style*="cursor: pointer"], [style*="cursor:pointer"] {
   cursor: url('/cursors/Cherry Wood (link select).ani'), pointer !important;
 }
 
-/* Text input / editable */
+/* Text input */
 input[type="text"], input[type="email"], input[type="password"],
 input[type="number"], input[type="search"], input[type="url"],
-textarea, [contenteditable] {
+input[type="tel"], input[type="date"],
+textarea, [contenteditable="true"] {
   cursor: url('/cursors/Cherry Wood (text select).cur'), text !important;
 }
 
@@ -51,24 +58,14 @@ input[type="range"] {
   cursor: url('/cursors/Cherry Wood (horizontal resize).cur'), ew-resize !important;
 }
 
-/* Resize handles */
-[style*="resize"] {
-  cursor: url('/cursors/Cherry Wood (diagonal resize 1).cur'), nwse-resize !important;
-}
-
-/* Move / drag */
+/* Draggable elements */
 [draggable="true"] {
   cursor: url('/cursors/Cherry Wood (move).cur'), move !important;
 }
 
-/* Disabled / not-allowed */
-[disabled], button:disabled, input:disabled {
+/* Disabled */
+[disabled], [aria-disabled="true"], button:disabled, input:disabled, select:disabled {
   cursor: url('/cursors/Cherry Wood (unavailable).cur'), not-allowed !important;
-}
-
-/* Help */
-[title], abbr {
-  cursor: url('/cursors/Cherry Wood (help select).cur'), help !important;
 }
 /* ──────────────────────────────────────────────────────────────── */
 
