@@ -807,9 +807,9 @@ export default function Missions() {
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}
-              title={`District: ${hero.area || 'My Area'}`}
+              title={`Local: ${hero.area || 'My Area'}`}
             >
-              📍 My District ({hero.area || 'Local'})
+              📍 Local ({hero.area || 'My Area'})
             </button>
           </div>
 
@@ -850,7 +850,7 @@ export default function Missions() {
                 return (
                   <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic', fontWeight: 600 }}>
                     {areaFilter === 'local' 
-                      ? `No active quests in ${hero.area || 'your district'} yet!` 
+                      ? `No active quests in ${hero.area || 'your area'} yet!` 
                       : 'All petitions resolved! Return to the Map to report new anomalies.'}
                   </div>
                 );

@@ -48,11 +48,7 @@ router.get('/', optionalAuth, async (req, res) => {
       query += ` AND m.status != 'Pending Verification'`;
     }
 
-    // Exclude own reports unless testing mode or in local development
-    if (req.userId && testing !== 'true' && process.env.NODE_ENV === 'production') {
-      params.push(req.userId);
-      query += ` AND i.reporter_id != $${params.length}`;
-    }
+
 
 
 
