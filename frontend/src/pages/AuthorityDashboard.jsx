@@ -23,8 +23,8 @@ export default function AuthorityDashboard() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Email verification logic with Geolocation fallback for hackathon testing
-  const handleVerifyPasscode = () => {
+  // Email verification logic via secure POST fetch request to backend API
+  const handleVerifyPasscode = async () => {
     if (!email.trim()) {
       setErrorMsg('Please enter an official email.');
       return;
@@ -33,25 +33,6 @@ export default function AuthorityDashboard() {
     setIsLoading(true);
     setErrorMsg('');
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          await performLogin(lat, lng);
-        },
-        async (error) => {
-          console.warn('Geolocation failed, logging in without coordinates:', error);
-          await performLogin(null, null);
-        },
-        { timeout: 5000 }
-      );
-    } else {
-      performLogin(null, null);
-    }
-  };
-
-  const performLogin = async (lat, lng) => {
     try {
       const baseUrl = import.meta.env.VITE_API_URL || '/api';
       const response = await fetch(`${baseUrl}/auth/authority/unlock`, {
@@ -59,7 +40,7 @@ export default function AuthorityDashboard() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email: email.trim(), lat, lng })
+        body: JSON.stringify({ email: email.trim() })
       });
 
       const data = await response.json();
@@ -514,7 +495,7 @@ export default function AuthorityDashboard() {
                 }}
               />
               <span style={{ color: '#D4AF37', fontSize: '0.78rem', fontWeight: 600, textAlign: 'center', margin: '4px 0' }}>
-                🔑 Quick access: Use <strong style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('test@gmail.com')}>test@gmail.com</strong>
+                🔑 Try: <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('vasai.admin@gov.in')}>vasai.admin@gov.in</span> or <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setEmail('alibagh.admin@gov.in')}>alibagh.admin@gov.in</span>
               </span>
               {errorMsg && (
                 <span style={{ color: '#B53F3F', fontSize: '0.78rem', fontWeight: 700, fontStyle: 'italic', marginTop: '2px' }}>

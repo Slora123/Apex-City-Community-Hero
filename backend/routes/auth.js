@@ -172,40 +172,19 @@ router.get('/me', require('../middleware/auth').requireAuth, async (req, res) =>
 // ── Authority Dashboard Dynamic Endpoint ──────────────────────────────────────
 router.post('/authority/unlock', async (req, res) => {
   try {
-    const { email, lat, lng } = req.body;
+    const { email } = req.body;
     const cleanEmail = email ? email.toString().trim().toLowerCase() : '';
     
     if (cleanEmail.length === 0) {
       return res.status(401).json({ success: false, error: 'Official Email is required.' });
     }
 
-    let locationName = '';
-    
-    if (cleanEmail === 'test@gmail.com') {
-      // Hackathon Bypass: Check user's current GPS location and log them into the nearest city
-      const uLat = parseFloat(lat);
-      const uLng = parseFloat(lng);
-      if (!isNaN(uLat) && !isNaN(uLng)) {
-        const nearestCityRes = await db.query(
-          'SELECT city FROM authority_codes ORDER BY (lat - $1)*(lat - $1) + (lng - $2)*(lng - $2) LIMIT 1',
-          [uLat, uLng]
-        );
-        if (nearestCityRes.rows.length > 0) {
-          locationName = nearestCityRes.rows[0].city;
-        } else {
-          locationName = 'Vasai'; // fallback
-        }
-      } else {
-        locationName = 'Vasai'; // fallback
-      }
-    } else {
-      // Strict Check: Check if email exists in database
-      const codeRes = await db.query('SELECT city FROM authority_codes WHERE email = $1', [cleanEmail]);
-      if (codeRes.rows.length === 0) {
-        return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Invalid official email.' });
-      }
-      locationName = codeRes.rows[0].city;
+    // Strict Check: Check if email exists in database
+    const codeRes = await db.query('SELECT city FROM authority_codes WHERE email = $1', [cleanEmail]);
+    if (codeRes.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Invalid official email.' });
     }
+    const locationName = codeRes.rows[0].city;
 
     // Fetch real issues for this location from the database
     const issuesRes = await db.query(
