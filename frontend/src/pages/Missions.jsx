@@ -847,15 +847,26 @@ export default function Missions() {
 
                     const isUserInRaigad = userArea.includes('raigad') || userCity.includes('alibag') || userArea.includes('alibag') || userCity.includes('raigad');
                     const isUserInVasai = userArea.includes('vasai') || userCity.includes('vasai') || userArea.includes('naigaon') || userCity.includes('naigaon') || userArea.includes('virar') || userCity.includes('virar');
+                    const isUserInNorthGoa = userArea.includes('north goa') || userCity.includes('panaji') || userCity.includes('panjim') || userCity.includes('mapusa');
+                    const isUserInSouthGoa = userArea.includes('south goa') || userCity.includes('margao') || userCity.includes('madgaon') || userCity.includes('vasco');
 
                     const mLoc = (m.location || '').toLowerCase();
                     const mRepArea = (m.reporterArea || '').toLowerCase();
 
                     const isIssueInRaigad = mLoc.includes('alibag') || mLoc.includes('raigad') || mRepArea.includes('raigad') || mRepArea.includes('alibag');
                     const isIssueInVasai = mLoc.includes('vasai') || mLoc.includes('virar') || mLoc.includes('naigaon') || mLoc.includes('umela') || mRepArea.includes('vasai') || mRepArea.includes('virar') || mRepArea.includes('naigaon') || mRepArea.includes('umela');
+                    const isIssueInNorthGoa = mLoc.includes('north goa') || mLoc.includes('panaji') || mLoc.includes('panjim') || mLoc.includes('mapusa') || mLoc.includes('calangute') || mRepArea.includes('north goa');
+                    const isIssueInSouthGoa = mLoc.includes('south goa') || mLoc.includes('margao') || mLoc.includes('madgaon') || mLoc.includes('vasco') || mLoc.includes('mormugao') || mRepArea.includes('south goa');
 
                     if (isUserInRaigad && isIssueInRaigad) return true;
                     if (isUserInVasai && isIssueInVasai) return true;
+                    if (isUserInNorthGoa && isIssueInNorthGoa) return true;
+                    if (isUserInSouthGoa && isIssueInSouthGoa) return true;
+
+                    // Goa general state-wide grouping fallback
+                    const isUserInGoa = userArea.includes('goa') || userCity.includes('goa');
+                    const isIssueInGoa = mLoc.includes('goa') || mRepArea.includes('goa');
+                    if (isUserInGoa && isIssueInGoa) return true;
 
                     // Fallback to basic string match (works for any city/location globally)
                     const isMatchArea = userArea && mRepArea.includes(userArea);
