@@ -598,7 +598,7 @@ export default function AuthorityDashboard() {
                   </tbody>
                 </table>
                 
-                <button className="quick-action-btn">
+                <button className="quick-action-btn" onClick={() => alert('Response Units Dispatched! Municipal field teams have been notified.')}>
                   Quick Action &rarr;
                 </button>
               </div>
