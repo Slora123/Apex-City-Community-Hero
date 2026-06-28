@@ -1087,7 +1087,12 @@ export default function Missions() {
             }}>
               {!cameraError && cameraStream ? (
                 <video
-                  ref={videoRef}
+                  ref={(el) => {
+                    videoRef.current = el;
+                    if (el && cameraStream && el.srcObject !== cameraStream) {
+                      el.srcObject = cameraStream;
+                    }
+                  }}
                   autoPlay
                   playsInline
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}

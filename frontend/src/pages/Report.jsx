@@ -675,9 +675,7 @@ export default function Report() {
               Petition Dispatched!
             </h2>
 
-            <p style={{ fontSize: '0.95rem', color: '#3C2D24', margin: 0, lineHeight: '1.5', fontWeight: 600 }}>
-              The Guild has received your scroll. Artisans have been dispatched to investigate and repair the anomaly at the coordinates.
-            </p>
+            {/* Text removed as requested */}
 
             {/* AI Analysis Panel */}
             {submitDetails?.aiAnalysis && (
