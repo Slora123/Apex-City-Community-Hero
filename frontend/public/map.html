@@ -106,9 +106,102 @@
       pointer-events: none;
     }
 
-    /* Joystick styles only */
+    /* Joystick styles removed */
 
-/* Joystick styles removed */
+    /* ── PC Controls Hint Panel ─────────────────────────── */
+    #pc-hint {
+      display: none;
+      position: absolute;
+      bottom: 80px;
+      left: 16px;
+      z-index: 110;
+      background: rgba(26, 18, 10, 0.82);
+      border: 1.5px solid rgba(255, 212, 121, 0.4);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #f4e8c1;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 12px;
+      line-height: 1.9;
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+      min-width: 190px;
+    }
+    #pc-hint .hint-title {
+      color: #ffd479;
+      font-weight: bold;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    #pc-hint kbd {
+      display: inline-block;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,212,121,0.35);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: #ffd479;
+      font-family: monospace;
+      margin: 0 1px;
+    }
+
+    /* ── Pointer-Lock Crosshair ────────────────────────── */
+    #crosshair {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 120;
+      pointer-events: none;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.75);
+      border-radius: 2px;
+    }
+    #crosshair::before {
+      width: 16px;
+      height: 2px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #crosshair::after {
+      width: 2px;
+      height: 16px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* ── Pointer-Lock Hint Overlay (click to capture) ── */
+    #lock-hint {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 150;
+      background: rgba(26, 18, 10, 0.78);
+      border: 1.5px solid rgba(255,212,121,0.45);
+      border-radius: 14px;
+      padding: 18px 28px;
+      color: #f4e8c1;
+      font-family: 'Georgia', serif;
+      font-size: 15px;
+      text-align: center;
+      pointer-events: none;
+      backdrop-filter: blur(8px);
+      line-height: 1.6;
+    }
+    #lock-hint span {
+      color: #ffd479;
+      font-weight: bold;
+    }
 
     .view-toggle-btn {
       position: absolute;
@@ -280,6 +373,23 @@
 <!-- Joystick HTML removed -->
     
     <button id="btn-view-mode" class="view-toggle-btn">👤 Third Person</button>
+
+    <!-- PC keyboard hint panel -->
+    <div id="pc-hint">
+      <div class="hint-title">⌨ PC Controls</div>
+      <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — Move</div>
+      <div><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> — Move</div>
+      <div><kbd>Mouse</kbd> — Look around</div>
+      <div><kbd>Scroll</kbd> — Zoom (3rd person)</div>
+      <div><kbd>Click</kbd> — Walk to / Pick mission</div>
+      <div><kbd>ESC</kbd> — Release mouse</div>
+    </div>
+
+    <!-- Crosshair shown in pointer-lock mode -->
+    <div id="crosshair"></div>
+
+    <!-- Click-to-lock hint -->
+    <div id="lock-hint">Click to <span>capture mouse</span><br><small style="color:#b3a387;font-size:12px">for FPS mouse-look · ESC to release</small></div>
 
     <!-- Issue Pin Popup -->
     <div id="issue-popup">
@@ -2194,6 +2304,32 @@
       let leftClickStartX = 0, leftClickStartY = 0;
       let camYaw = 0, camPitch = 0, camDist = 5.5;
 
+      // ── Pointer Lock (PC FPS mouse look) ──────────────────
+      let pointerLocked = false;
+      const crosshairEl = document.getElementById('crosshair');
+      const lockHintEl  = document.getElementById('lock-hint');
+      const pcHintEl    = document.getElementById('pc-hint');
+
+      // Detect if we're on a desktop (non-touch) device
+      const isDesktop = !('ontouchstart' in window) && !navigator.maxTouchPoints;
+      if (isDesktop) {
+        lockHintEl.style.display = 'block';
+        pcHintEl.style.display   = 'block';
+      }
+
+      renderer.domElement.addEventListener('click', () => {
+        // Request pointer lock on click (only on desktop, non-touch)
+        if (isDesktop && document.pointerLockElement !== renderer.domElement) {
+          renderer.domElement.requestPointerLock();
+        }
+      });
+
+      document.addEventListener('pointerlockchange', () => {
+        pointerLocked = document.pointerLockElement === renderer.domElement;
+        crosshairEl.style.display = pointerLocked ? 'block' : 'none';
+        lockHintEl.style.display  = (isDesktop && !pointerLocked) ? 'block' : 'none';
+      });
+
       renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
       renderer.domElement.addEventListener('mousedown', e => {
         if (e.button === 0) {
@@ -2211,9 +2347,42 @@
           rightMouseDown = false;
         }
         if (e.button === 0) {
+          // In pointer-lock mode, a click always tries click-to-move / pin (crosshair-based)
+          if (pointerLocked) {
+            // Raycast from screen center
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = 0; // center
+            mouse.y = 0; // center
+            raycaster.setFromCamera(mouse, camera);
+
+            const pins = roadIssues.map(r => r.pin).filter(Boolean);
+            if (pins.length > 0) {
+              const intersects = raycaster.intersectObjects(pins, true);
+              if (intersects.length > 0) {
+                let clickedPin = intersects[0].object;
+                while (clickedPin.parent && !pins.includes(clickedPin)) clickedPin = clickedPin.parent;
+                const issueEntry = roadIssues.find(r => r.pin === clickedPin);
+                if (issueEntry && issueEntry.issueData) {
+                  document.exitPointerLock(); // release so popup is interactive
+                  showIssuePopup(issueEntry.issueData);
+                  return;
+                }
+              }
+            }
+
+            const p = groundIntersect(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            if (p && withinCityBounds(p)) {
+              resolveAgainstBuildings(p);
+              moveTarget.set(p.x, 0, p.z);
+              isMoving = true;
+              spawnClickMarker(p);
+            }
+            return;
+          }
+
+          // Free mouse mode: only walk if cursor didn't move much
           const dx = e.clientX - leftClickStartX;
           const dy = e.clientY - leftClickStartY;
-          // If the mouse moved very little, it's a click to move, not a drag!
           if (Math.hypot(dx, dy) < 5) {
             
             // Check for Pin clicks first
@@ -2247,17 +2416,24 @@
         }
       });
       window.addEventListener('mousemove', e => {
-        if (rightMouseDown) {
+        if (pointerLocked) {
+          // Pointer Lock API gives raw delta — no coordinate clamping needed
+          const dx = e.movementX, dy = e.movementY;
+          camYaw   -= dx * 0.002;
+          camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.002));
+        } else if (rightMouseDown) {
+          // Fallback: right-click drag to look (existing behaviour preserved)
           const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
-          camYaw -= dx * 0.005;
-          // Expanded vertical range: -0.45 (look up at sky/sun) to 1.48 (look down at feet)
-          camPitch = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.004));
+          camYaw   -= dx * 0.005;
+          camPitch  = Math.min(1.48, Math.max(-0.45, camPitch - dy * 0.004));
           lastMouseX = e.clientX; lastMouseY = e.clientY;
         }
       });
       renderer.domElement.addEventListener('wheel', e => {
         camDist = Math.min(250, Math.max(5, camDist + e.deltaY * 0.08));
       }, { passive: true });
+
+      // ESC always releases pointer lock (browser default) — no extra code needed
 
       // touch support (tap to move, one-finger drag to orbit, two-finger pinch to zoom)
       let touchStartX = 0, touchStartY = 0, touchMoved = false;
@@ -2344,18 +2520,27 @@
       });
 
       // Keyboard movement states
-      const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+      const keys = { w: false, a: false, s: false, d: false, arrowup: false, arrowleft: false, arrowdown: false, arrowright: false };
 
-      window.addEventListener('keydown', e => {
+      // Key event listeners — attached to BOTH window and document so iframe captures them correctly
+      function onKeyDown(e) {
+        // Prevent arrow-key page scroll while in the map
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
         const k = e.key.toLowerCase();
         if (k in keys) keys[k] = true;
-        if (e.key in keys) keys[e.key] = true;
-      });
-      window.addEventListener('keyup', e => {
+        // Also handle 'q'/'e' strafing as synonyms for left/right (common QWERTY layout)
+      }
+      function onKeyUp(e) {
         const k = e.key.toLowerCase();
         if (k in keys) keys[k] = false;
-        if (e.key in keys) keys[e.key] = false;
-      });
+      }
+      window.addEventListener('keydown', onKeyDown);
+      window.addEventListener('keyup',   onKeyUp);
+      // Also capture on the canvas itself (needed when canvas has focus)
+      renderer.domElement.addEventListener('keydown', onKeyDown);
+      renderer.domElement.addEventListener('keyup',   onKeyUp);
+      renderer.domElement.setAttribute('tabindex', '0'); // make canvas focusable
+      renderer.domElement.focus();                        // auto-focus on load
 
       /* Joystick JS removed */
 
@@ -2430,10 +2615,10 @@
         // Calculate movement vector from keyboard
         const moveVec = new THREE.Vector3(0, 0, 0);
 
-        const pressW = keys.w || keys.ArrowUp;
-        const pressS = keys.s || keys.ArrowDown;
-        const pressA = keys.a || keys.ArrowLeft;
-        const pressD = keys.d || keys.ArrowRight;
+        const pressW = keys.w || keys.arrowup;
+        const pressS = keys.s || keys.arrowdown;
+        const pressA = keys.a || keys.arrowleft;
+        const pressD = keys.d || keys.arrowright;
 
         if (pressW) moveVec.z -= 1;
         if (pressS) moveVec.z += 1;
