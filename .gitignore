@@ -50,3 +50,6 @@ Thumbs.db
 map_ref.jpeg
 TASKS
 Vibe2Ship - Problem Statements & Submission Guidelines.pdf
+
+# User-uploaded photos (runtime uploads — never commit these)
+backend/uploads/
