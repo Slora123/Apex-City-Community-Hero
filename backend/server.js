@@ -64,6 +64,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Serve uploaded files as static assets
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ── Root Route ───────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.send('<h1>Apex City - Community Hero Backend is running! 🦸</h1><p>For API health details, go to <a href="/api/health">/api/health</a></p>');
+});
+
 // ── Health Check ─────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   try {
