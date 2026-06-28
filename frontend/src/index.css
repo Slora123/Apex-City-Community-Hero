@@ -37,10 +37,15 @@ p, h1, h2, h3, h4, h5, h6, li, ul, ol, table, tr, td, th {
   cursor: url('/cursors/Cherry Wood (normal select).cur'), auto !important;
 }
 
-/* 2. POINTER — links & buttons — use alternate-select.cur (.ani not supported in Chrome) */
-a, a *, button, button *,
-[role="button"], [role="tab"], [role="menuitem"], [role="option"],
-label[for], select,
+/* 2. POINTER — links & buttons — all states (hover, active, focus) to prevent flash on click */
+a, a:hover, a:active, a:focus, a:visited,
+a *, a:hover *, a:active *,
+button, button:hover, button:active, button:focus, button:focus-visible,
+button *, button:hover *, button:active *,
+[role="button"], [role="button"]:hover, [role="button"]:active,
+[role="tab"], [role="tab"]:hover, [role="tab"]:active,
+[role="menuitem"], [role="option"],
+label[for], select, select:hover, select:active,
 [style*="cursor: pointer"], [style*="cursor:pointer"],
 [style*="cursor:hand"] {
   cursor: url('/cursors/Cherry Wood (alternate select).cur'), pointer !important;
