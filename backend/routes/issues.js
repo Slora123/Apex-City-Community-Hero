@@ -34,7 +34,10 @@ router.get('/', optionalAuth, async (req, res) => {
       FROM issues i
       LEFT JOIN users u ON i.reporter_id = u.id
     `;
-    const conditions = [];
+    const conditions = [
+      "i.reporter_id NOT LIKE 'demo-%'",
+      "i.id NOT LIKE 'issue-%'"
+    ];
     const params = [];
 
     if (status) {

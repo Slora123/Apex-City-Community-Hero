@@ -36,13 +36,15 @@ router.get('/', optionalAuth, async (req, res) => {
       JOIN issues i ON m.issue_id = i.id
       LEFT JOIN users u ON m.assignee_id = u.id
       JOIN users reporter ON i.reporter_id = reporter.id
-      WHERE 1=1
+      WHERE i.reporter_id NOT LIKE 'demo-%' AND i.id NOT LIKE 'issue-%'
     `;
     const params = [];
 
     if (status !== 'all') {
       params.push(status);
       query += ` AND m.status = $${params.length}`;
+    } else {
+      query += ` AND m.status != 'Pending Verification'`;
     }
 
     // Exclude own reports unless testing mode or in local development
