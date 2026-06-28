@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Trophy, Home, Map, CheckSquare, User, Shield, Scroll, Activity, MapPin } from 'lucide-react';
+import { Trophy, Home, Map, CheckSquare, User, Shield, Scroll, Activity, MapPin, Volume2, VolumeX } from 'lucide-react';
 
 import BottomNav from '../components/BottomNav';
 
@@ -18,7 +18,7 @@ function getIssueLabel(status) {
 }
 
 export default function Dashboard() {
-  const { hero, missions } = useGame();
+  const { hero, missions, volume, setVolume, isMuted, setIsMuted } = useGame();
   const navigate   = useNavigate();
   const location   = useLocation();
 
@@ -77,31 +77,84 @@ export default function Dashboard() {
 
           {showLogout && (
             <div 
-              onClick={(e) => {
-                e.stopPropagation();
-                // Import logout from API if not already imported (wait, I need to add import)
-                import('../api').then(({ logout }) => {
-                  logout();
-                  navigate('/login');
-                });
-              }}
               style={{
                 position: 'absolute',
                 top: '40px',
                 left: '0',
                 backgroundColor: 'var(--panel-bg, #2D1B13)',
                 border: '2px solid var(--panel-border, #8B5E34)',
-                padding: '10px 15px',
+                padding: '15px',
                 borderRadius: '8px',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                color: 'var(--accent-color, #F4E8C1)',
+                flexDirection: 'column',
+                gap: '12px',
+                color: '#FFF',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-                zIndex: 2000
+                zIndex: 2000,
+                minWidth: '180px'
               }}
             >
-              <span style={{ fontWeight: 'bold' }}>Logout</span>
+              {/* Audio Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', color: '#F4E8C1' }}>
+                    {isMuted ? <VolumeX size={14} color="#F4E8C1" /> : <Volume2 size={14} color="#F4E8C1" />}
+                    {isMuted ? 'Muted' : 'Volume'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsMuted(!isMuted)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#F4E8C1',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      fontFamily: "'MedievalSharp', serif",
+                    }}
+                  >
+                    {isMuted ? 'Unmute' : 'Mute'}
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => {
+                    setVolume(parseFloat(e.target.value));
+                    if (isMuted) setIsMuted(false);
+                  }}
+                  style={{ width: '100%', accentColor: '#F4E8C1', cursor: 'pointer' }}
+                />
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid var(--panel-border, #8B5E34)', margin: '4px 0' }} />
+
+              <div 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  import('../api').then(({ logout }) => {
+                    logout();
+                    navigate('/login');
+                  });
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  color: 'var(--accent-color, #F4E8C1)',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                <span>Logout</span>
+              </div>
             </div>
           )}
         </div>
