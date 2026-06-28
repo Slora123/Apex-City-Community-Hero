@@ -138,7 +138,7 @@ function calculatePriority(severity, reports, impact) {
  * Smart mock analysis — generates realistic results without calling an API
  * Uses filename, timestamp, and randomized-but-realistic data
  */
-function mockAnalysis(imagePath, estimatedReports = null) {
+function mockAnalysis(imagePath, estimatedReports = null, contextData = {}) {
   const filename = (imagePath || '').toLowerCase();
 
   // Detect likely issue type from filename hints
@@ -159,7 +159,7 @@ function mockAnalysis(imagePath, estimatedReports = null) {
   const severityIdx = Math.floor(Math.random() * 4);
   const severity = SEVERITY_LEVELS[severityIdx];
   const impactOptions = ['Residential Area', 'Heavy Traffic Zone', 'School Nearby', 'Commercial District', 'Park Area'];
-  const impact = impactOptions[Math.floor(Math.random() * impactOptions.length)];
+  const impact = contextData.address || impactOptions[Math.floor(Math.random() * impactOptions.length)];
   const estimatedSizes = ['Small (< 0.5m)', 'Medium (0.5–2m)', 'Large (2–5m)', 'Major (> 5m)'];
   const estimatedSize = estimatedSizes[Math.floor(Math.random() * estimatedSizes.length)];
   const reportCount = estimatedReports ?? (Math.floor(Math.random() * 8) + 1);
@@ -201,7 +201,7 @@ function mockAnalysis(imagePath, estimatedReports = null) {
 /**
  * Real Gemini Vision analysis
  */
-async function geminiAnalysis(imagePath, estimatedReports = null) {
+async function geminiAnalysis(imagePath, estimatedReports = null, contextData = {}) {
   let model;
   try {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -224,9 +224,17 @@ async function geminiAnalysis(imagePath, estimatedReports = null) {
     return mockAnalysis(imagePath, estimatedReports);
   }
 
+  let contextStr = '';
+  if (contextData.address || (contextData.lat && contextData.lng)) {
+    contextStr = `\nContext Information for this issue:\n`;
+    if (contextData.address) contextStr += `- Address/Location: ${contextData.address}\n`;
+    if (contextData.lat && contextData.lng) contextStr += `- Coordinates: ${contextData.lat}, ${contextData.lng}\n`;
+    contextStr += `Use this location data to accurately estimate the "impact" (e.g. if it's near a school, park, residential area, highway) and "severity".`;
+  }
+
   const prompt = `You are an AI assistant for a civic reporting platform called Apex City (tagline/description: Community Hero).
 Analyse this image of a reported civic issue and return ONLY a JSON object with these exact fields.
-Do NOT restrict yourself to a hardcoded list of issues. Identify the exact civic issue accurately (e.g., "Unclean Beach", "Broken Road", "Fallen Power Line", "Peeling Posters", "Massive Pothole").
+Do NOT restrict yourself to a hardcoded list of issues. Identify the exact civic issue accurately (e.g., "Unclean Beach", "Broken Road", "Fallen Power Line", "Peeling Posters", "Massive Pothole").${contextStr}
 
 {
   "isValid": <true if the image appears to contain a genuine civic issue/damage/uncleanliness, false if it is a random photo, selfie, pet, indoor scene, generic screenshot, or clear prank>,
@@ -308,18 +316,18 @@ Be accurate and helpful. Return ONLY valid JSON, without any markdown code block
 /**
  * Main analysis function — uses Gemini if key available, otherwise mock
  */
-async function analyseImage(imagePath, estimatedReports = null) {
+async function analyseImage(imagePath, estimatedReports = null, contextData = {}) {
   if (GEMINI_API_KEY && GEMINI_API_KEY.trim().length > 10) {
     try {
       console.log('🤖 Using Gemini AI for analysis...');
-      return await geminiAnalysis(imagePath, estimatedReports);
+      return await geminiAnalysis(imagePath, estimatedReports, contextData);
     } catch (err) {
       console.warn('⚠️  Gemini analysis failed, falling back to mock:', err.message);
-      return mockAnalysis(imagePath, estimatedReports);
+      return mockAnalysis(imagePath, estimatedReports, contextData);
     }
   } else {
-    console.log('🎭 Using smart mock analysis (no Gemini key configured)');
-    return mockAnalysis(imagePath, estimatedReports);
+    console.log('⚠️  No Gemini API Key found. Using smart mock analysis.');
+    return mockAnalysis(imagePath, estimatedReports, contextData);
   }
 }
 

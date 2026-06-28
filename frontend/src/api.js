@@ -5,6 +5,14 @@
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+export function getImageUrl(path) {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  
+  const serverUrl = BASE_URL.replace(/\/api$/, '');
+  return `${serverUrl}${path.startsWith('/') ? path : '/' + path}`;
+}
+
 // ── Token Management ─────────────────────────────────────────────────────
 
 export function getToken() {

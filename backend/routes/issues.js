@@ -176,7 +176,7 @@ router.post('/', requireAuth, (req, res) => {
       if (req.file) {
         photoPath = `issues/${req.file.filename}`;
         try {
-          aiAnalysis = await analyseImage(req.file.path);
+          aiAnalysis = await analyseImage(req.file.path, null, { lat, lng, address });
           if (aiAnalysis.isValid === false) {
              // Delete the uploaded file if it's invalid
              fs.unlink(req.file.path, () => {});

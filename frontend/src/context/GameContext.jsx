@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe, getMissions, submitIssue, getStoredUser, getToken, healthCheck } from '../api';
+import { getMe, getMissions, submitIssue, getStoredUser, getToken, healthCheck, getImageUrl } from '../api';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -97,9 +97,9 @@ export const GameProvider = ({ children }) => {
           lat: m.issue_lat,
           lng: m.issue_lng,
           distance: m.distance,
-          beforePhotoUrl: m.beforePhotoUrl,
-          afterPhotoUrl: m.afterPhotoUrl,
-          photoUrl: m.photoUrl,
+          beforePhotoUrl: getImageUrl(m.beforePhotoUrl),
+          afterPhotoUrl: getImageUrl(m.afterPhotoUrl),
+          photoUrl: getImageUrl(m.photoUrl),
           issueId: m.issue_id,
           backendId: m.id,
           assigneeId: m.assignee_id,
