@@ -26,8 +26,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Cherry Wood Custom Cursor Set ───────────────────────────────── */
-/* Base default — !important overrides any inline style="cursor:auto/default" */
+/* ══ Cherry Wood Custom Cursor Set ══════════════════════════════════ */
+
+/* 1. DEFAULT — normal pointer everywhere */
 *, *::before, *::after,
 html, body,
 div, span, section, article, aside, header, footer, main, nav,
@@ -36,16 +37,15 @@ p, h1, h2, h3, h4, h5, h6, li, ul, ol {
   cursor: url('/cursors/Cherry Wood (normal select).cur'), auto !important;
 }
 
-/* Pointer — links, buttons, clickable things */
+/* 2. POINTER — links, buttons, anything clickable (animated!) */
 a, button,
 [role="button"], [role="tab"], [role="menuitem"], [role="option"],
 label[for], select,
-[onClick], [onclick],
 [style*="cursor: pointer"], [style*="cursor:pointer"] {
   cursor: url('/cursors/Cherry Wood (link select).ani'), pointer !important;
 }
 
-/* Text input */
+/* 3. TEXT — inputs and editable fields */
 input[type="text"], input[type="email"], input[type="password"],
 input[type="number"], input[type="search"], input[type="url"],
 input[type="tel"], input[type="date"],
@@ -53,21 +53,63 @@ textarea, [contenteditable="true"] {
   cursor: url('/cursors/Cherry Wood (text select).cur'), text !important;
 }
 
-/* Range sliders */
-input[type="range"] {
+/* 4. BUSY / WAIT — loading spinners, skeleton screens */
+[aria-busy="true"], .loading, .skeleton, .spinner {
+  cursor: url('/cursors/Cherry Wood (busy).cur'), wait !important;
+}
+
+/* 5. PROGRESS — background work happening */
+.async-loading, [data-loading="true"] {
+  cursor: url('/cursors/Cherry Wood (working in background).cur'), progress !important;
+}
+
+/* 6. NOT-ALLOWED — disabled elements */
+[disabled], [aria-disabled="true"],
+button:disabled, input:disabled, select:disabled, textarea:disabled {
+  cursor: url('/cursors/Cherry Wood (unavailable).cur'), not-allowed !important;
+}
+
+/* 7. MOVE / GRAB — draggable cards, map drag */
+[draggable="true"], .draggable, .grabbable,
+[style*="cursor: grab"], [style*="cursor:grab"],
+[style*="cursor: move"], [style*="cursor:move"] {
+  cursor: url('/cursors/Cherry Wood (move).cur'), grab !important;
+}
+
+/* 8. HELP — tooltip-bearing elements, info icons */
+.help-icon, [data-tooltip], [aria-label][tabindex],
+[style*="cursor: help"] {
+  cursor: url('/cursors/Cherry Wood (help select).cur'), help !important;
+}
+
+/* 9. RESIZE HORIZONTAL — splitter panels, column resize handles */
+[style*="cursor: ew-resize"], [style*="cursor:ew-resize"],
+[style*="cursor: col-resize"], .col-resize {
   cursor: url('/cursors/Cherry Wood (horizontal resize).cur'), ew-resize !important;
 }
 
-/* Draggable elements */
-[draggable="true"] {
-  cursor: url('/cursors/Cherry Wood (move).cur'), move !important;
+/* 10. RESIZE VERTICAL — row resize handles */
+[style*="cursor: ns-resize"], [style*="cursor:ns-resize"],
+[style*="cursor: row-resize"], .row-resize {
+  cursor: url('/cursors/Cherry Wood (vertical resize).cur'), ns-resize !important;
 }
 
-/* Disabled */
-[disabled], [aria-disabled="true"], button:disabled, input:disabled, select:disabled {
-  cursor: url('/cursors/Cherry Wood (unavailable).cur'), not-allowed !important;
+/* 11. RESIZE DIAGONAL NW-SE — modal/panel corner drag */
+[style*="cursor: nwse-resize"], [style*="cursor:nwse-resize"] {
+  cursor: url('/cursors/Cherry Wood (diagonal resize 1).cur'), nwse-resize !important;
 }
-/* ──────────────────────────────────────────────────────────────── */
+
+/* 12. RESIZE DIAGONAL NE-SW */
+[style*="cursor: nesw-resize"], [style*="cursor:nesw-resize"] {
+  cursor: url('/cursors/Cherry Wood (diagonal resize 2).cur'), nesw-resize !important;
+}
+
+/* 13. PRECISION / CROSSHAIR — map pin placement, heatmap interaction */
+.crosshair, [style*="cursor: crosshair"], [style*="cursor:crosshair"],
+[data-map-mode="pin"] {
+  cursor: url('/cursors/Cherry Wood (precision select).cur'), crosshair !important;
+}
+/* ═════════════════════════════════════════════════════════════════ */
 
 
 html {
