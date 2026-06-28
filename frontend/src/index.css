@@ -26,6 +26,53 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── Cherry Wood Custom Cursor Set ───────────────────────────────── */
+/* Default arrow cursor */
+html, body, * {
+  cursor: url('/cursors/Cherry Wood (normal select).cur'), auto;
+}
+
+/* Pointer (links, buttons) */
+a, button, [role="button"], label[for], select,
+[style*="cursor: pointer"], [style*="cursor:pointer"],
+.cursor-pointer {
+  cursor: url('/cursors/Cherry Wood (link select).ani'), pointer !important;
+}
+
+/* Text input / editable */
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="search"], input[type="url"],
+textarea, [contenteditable] {
+  cursor: url('/cursors/Cherry Wood (text select).cur'), text !important;
+}
+
+/* Range sliders */
+input[type="range"] {
+  cursor: url('/cursors/Cherry Wood (horizontal resize).cur'), ew-resize !important;
+}
+
+/* Resize handles */
+[style*="resize"] {
+  cursor: url('/cursors/Cherry Wood (diagonal resize 1).cur'), nwse-resize !important;
+}
+
+/* Move / drag */
+[draggable="true"] {
+  cursor: url('/cursors/Cherry Wood (move).cur'), move !important;
+}
+
+/* Disabled / not-allowed */
+[disabled], button:disabled, input:disabled {
+  cursor: url('/cursors/Cherry Wood (unavailable).cur'), not-allowed !important;
+}
+
+/* Help */
+[title], abbr {
+  cursor: url('/cursors/Cherry Wood (help select).cur'), help !important;
+}
+/* ──────────────────────────────────────────────────────────────── */
+
+
 html {
   overflow-x: hidden;
 }
