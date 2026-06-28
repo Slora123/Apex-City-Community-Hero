@@ -169,100 +169,44 @@ router.get('/me', require('../middleware/auth').requireAuth, async (req, res) =>
   }
 });
 
-// ── Authority Dashboard Mock Endpoint ──────────────────────────────────────
-router.post('/authority/unlock', (req, res) => {
-  const { passcode } = req.body;
-  const codeVasai = '1070';
-  const codeVirar = '1072';
-  const codeNalasopara = '1073';
-  
-  const locationData = {
-    Vasai: {
-      reports: [
-        { title: 'Grant St Potholes', severity: 'Critical', confidence: 99, authority: 'Department of Transportation' },
-        { title: 'Aqueduct Pipeline Burst', severity: 'High', confidence: 95, authority: 'Water & Sanitation Dept' },
-        { title: 'Market Square Lighting', severity: 'Medium', confidence: 85, authority: 'Public Works' },
-        { title: 'Watchtower Debris', severity: 'Medium', confidence: 88, authority: 'Waste Management' },
-        { title: 'Merchant Road Sinkhole', severity: 'High', confidence: 92, authority: 'Department of Transportation' },
-        { title: 'Vault Gate Malfunction', severity: 'Medium', confidence: 82, authority: 'Public Works' }
-      ],
-      scalarHotspot: { r: 4.5, c: 6.5 },
-      senthianTop: [90, 105, 98, 112, 106, 128],
-      senthianBottom: [62, 38, 42, 44, 58, 40],
-      affiliateHotspot: { r: 3.5, c: 10 },
-      contributorBars: [
-        { label: 'Mon', val: 45 },
-        { label: 'Tue', val: 75 },
-        { label: 'Wed', val: 55 },
-        { label: 'Thu', val: 90 },
-        { label: 'Fri', val: 120 },
-        { label: 'Sat', val: 140 }
-      ]
-    },
-    Virar: {
-      reports: [
-        { title: 'Grant Highway Crack', severity: 'High', confidence: 94, authority: 'Department of Transportation' },
-        { title: 'Roadway Drain Block', severity: 'Medium', confidence: 86, authority: 'Water & Sanitation Dept' },
-        { title: 'Guest House Overflow', severity: 'High', confidence: 91, authority: 'Waste Management' },
-        { title: 'Guard Post Power Loss', severity: 'Critical', confidence: 98, authority: 'Public Works' },
-        { title: 'Market Waste Pile', severity: 'Medium', confidence: 89, authority: 'Waste Management' },
-        { title: 'Chest Alley Flooding', severity: 'High', confidence: 93, authority: 'Water & Sanitation Dept' }
-      ],
-      scalarHotspot: { r: 2.5, c: 3.5 },
-      senthianTop: [110, 85, 95, 80, 115, 90],
-      senthianBottom: [45, 52, 30, 48, 35, 55],
-      affiliateHotspot: { r: 2.5, c: 7 },
-      contributorBars: [
-        { label: 'Mon', val: 30 },
-        { label: 'Tue', val: 50 },
-        { label: 'Wed', val: 80 },
-        { label: 'Thu', val: 65 },
-        { label: 'Fri', val: 95 },
-        { label: 'Sat', val: 110 }
-      ]
-    },
-    Nalasopara: {
-      reports: [
-        { title: 'Grant Avenue Blockage', severity: 'Critical', confidence: 97, authority: 'Department of Transportation' },
-        { title: 'Lantern Row Outage', severity: 'Medium', confidence: 84, authority: 'Public Works' },
-        { title: 'Guest Lane Pothole', severity: 'High', confidence: 90, authority: 'Department of Transportation' },
-        { title: 'Patrol Route Sinkhole', severity: 'High', confidence: 92, authority: 'Department of Transportation' },
-        { title: 'Gate Perimeter Breach', severity: 'Medium', confidence: 81, authority: 'Public Works' },
-        { title: 'Keep Wall Structural', severity: 'Critical', confidence: 96, authority: 'Public Infrastructure' }
-      ],
-      scalarHotspot: { r: 5.5, c: 7.5 },
-      senthianTop: [80, 95, 120, 100, 125, 110],
-      senthianBottom: [50, 40, 55, 30, 42, 48],
-      affiliateHotspot: { r: 4.5, c: 13 },
-      contributorBars: [
-        { label: 'Mon', val: 60 },
-        { label: 'Tue', val: 40 },
-        { label: 'Wed', val: 70 },
-        { label: 'Thu', val: 85 },
-        { label: 'Fri', val: 130 },
-        { label: 'Sat', val: 100 }
-      ]
+// ── Authority Dashboard Dynamic Endpoint ──────────────────────────────────────
+router.post('/authority/unlock', async (req, res) => {
+  try {
+    const { passcode } = req.body;
+    const cleanInput = passcode ? passcode.toString().trim() : '';
+    
+    if (cleanInput.length < 2) {
+      return res.status(401).json({ success: false, error: 'The gatekeeper frowns. Passcode too short.' });
     }
-  };
-  
-  const cleanInput = passcode ? passcode.toString().trim() : '';
-  
-  if (cleanInput === codeVasai) {
-    return res.json({ success: true, location: 'Vasai', telemetry: locationData.Vasai });
-  } else if (cleanInput === codeVirar) {
-    return res.json({ success: true, location: 'Virar', telemetry: locationData.Virar });
-  } else if (cleanInput === codeNalasopara) {
-    return res.json({ success: true, location: 'Nalasopara', telemetry: locationData.Nalasopara });
-  } else if (cleanInput.length > 2) {
-    // Dynamic city generation for any other passcode!
+
+    const locationName = cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1);
+
+    // Fetch real issues for this location from the database
+    const issuesRes = await db.query(
+      "SELECT * FROM issues WHERE address ILIKE $1 OR city ILIKE $1 ORDER BY created_at DESC LIMIT 15",
+      [`%${cleanInput}%`]
+    );
+
+    const realReports = issuesRes.rows.map(issue => {
+      let conf = 85 + Math.floor(Math.random() * 14); // Simulated AI confidence score
+      let authorityTarget = 'Public Works';
+      const catLower = (issue.category || '').toLowerCase();
+      const typeLower = (issue.type || '').toLowerCase();
+      
+      if (catLower.includes('water') || typeLower.includes('water')) authorityTarget = 'Water & Sanitation Dept';
+      if (catLower.includes('road') || catLower.includes('pothole') || typeLower.includes('road')) authorityTarget = 'Department of Transportation';
+      if (catLower.includes('trash') || catLower.includes('waste')) authorityTarget = 'Waste Management';
+
+      return {
+        title: issue.title,
+        severity: issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1),
+        confidence: conf,
+        authority: authorityTarget
+      };
+    });
+
     const dynamicTelemetry = {
-      reports: [
-        { title: `${cleanInput} Central Blockage`, severity: 'Critical', confidence: 96, authority: 'Department of Transportation' },
-        { title: `${cleanInput} Plaza Lighting`, severity: 'Medium', confidence: 88, authority: 'Public Works' },
-        { title: `${cleanInput} Water Main Leak`, severity: 'High', confidence: 92, authority: 'Water & Sanitation Dept' },
-        { title: 'Local Park Debris', severity: 'Low', confidence: 75, authority: 'Waste Management' },
-        { title: 'Subway Entrance Flooded', severity: 'High', confidence: 95, authority: 'Public Infrastructure' }
-      ],
+      reports: realReports,
       scalarHotspot: { r: Math.floor(Math.random() * 8) + 1, c: Math.floor(Math.random() * 8) + 1 },
       senthianTop: Array.from({length: 6}, () => Math.floor(Math.random() * 60) + 80),
       senthianBottom: Array.from({length: 6}, () => Math.floor(Math.random() * 40) + 30),
@@ -276,11 +220,11 @@ router.post('/authority/unlock', (req, res) => {
         { label: 'Sat', val: Math.floor(Math.random() * 100) + 20 }
       ]
     };
-    // Capitalize the first letter for display
-    const formattedLocation = cleanInput.charAt(0).toUpperCase() + cleanInput.slice(1);
-    return res.json({ success: true, location: formattedLocation, telemetry: dynamicTelemetry });
-  } else {
-    return res.status(401).json({ success: false, error: 'The gatekeeper frowns. That passcode is unrecognized in our archives.' });
+
+    return res.json({ success: true, location: locationName, telemetry: dynamicTelemetry });
+  } catch (err) {
+    console.error('Authority unlock error:', err);
+    return res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 });
 
