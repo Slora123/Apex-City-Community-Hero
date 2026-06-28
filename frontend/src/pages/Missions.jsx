@@ -837,23 +837,51 @@ export default function Missions() {
 
             {selectedMission.status === 'Awaiting Community Verification' ? (
               <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033' }}>
+                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', position: 'relative' }}>
                   <div style={{ background: '#5C4033', color: '#F4E8C1', textAlign: 'center', fontSize: '0.7rem', padding: '2px 0' }}>BEFORE</div>
                   {selectedMission.beforePhotoUrl ? (
-                    <img src={selectedMission.beforePhotoUrl} alt="Before" style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} />
+                    <>
+                      <img 
+                        src={selectedMission.beforePhotoUrl} 
+                        alt="Before" 
+                        style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} 
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          const fb = e.target.parentElement.querySelector('.before-fallback');
+                          if (fb) fb.style.display = 'block';
+                        }}
+                      />
+                      <div className="before-fallback" style={{ display: 'none', width: '100%', height: 'calc(100% - 18px)' }}>
+                        {getIllustration(selectedMission.type, false)}
+                      </div>
+                    </>
                   ) : (
                     <div style={{ width: '100%', height: 'calc(100% - 18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0d6b8' }}>
-                      <Camera size={24} color="#8B5E34" />
+                      {getIllustration(selectedMission.type, false)}
                     </div>
                   )}
                 </div>
-                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033' }}>
+                <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', position: 'relative' }}>
                   <div style={{ background: '#5C4033', color: '#F4E8C1', textAlign: 'center', fontSize: '0.7rem', padding: '2px 0' }}>AFTER</div>
                   {selectedMission.afterPhotoUrl ? (
-                    <img src={selectedMission.afterPhotoUrl} alt="After" style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} />
+                    <>
+                      <img 
+                        src={selectedMission.afterPhotoUrl} 
+                        alt="After" 
+                        style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} 
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          const fb = e.target.parentElement.querySelector('.after-fallback');
+                          if (fb) fb.style.display = 'block';
+                        }}
+                      />
+                      <div className="after-fallback" style={{ display: 'none', width: '100%', height: 'calc(100% - 18px)' }}>
+                        {getIllustration(selectedMission.type, true)}
+                      </div>
+                    </>
                   ) : (
                     <div style={{ width: '100%', height: 'calc(100% - 18px)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e0d6b8' }}>
-                      <Camera size={24} color="#8B5E34" />
+                      {getIllustration(selectedMission.type, true)}
                     </div>
                   )}
                 </div>
@@ -861,10 +889,24 @@ export default function Missions() {
             ) : (
               <div style={{ width: '100%', height: '180px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', boxShadow: '0 4px 8px rgba(0,0,0,0.3)', marginBottom: '16px', position: 'relative', background: '#2D1B13' }}>
                 {selectedMission.photoUrl ? (
-                  <img src={selectedMission.photoUrl} alt="Issue" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <>
+                    <img 
+                      src={selectedMission.photoUrl} 
+                      alt="Issue" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fb = e.target.parentElement.querySelector('.main-fallback');
+                        if (fb) fb.style.display = 'block';
+                      }}
+                    />
+                    <div className="main-fallback" style={{ display: 'none', width: '100%', height: '100%' }}>
+                      {getIllustration(selectedMission.type, false)}
+                    </div>
+                  </>
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B5E34' }}>
-                    No Photo
+                    {getIllustration(selectedMission.type, false)}
                   </div>
                 )}
               </div>

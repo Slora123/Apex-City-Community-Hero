@@ -5,8 +5,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  envDir: '../',
   server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups'
+    },
     proxy: {
       '/api/auth': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/authority': { target: 'http://localhost:3001', changeOrigin: true },

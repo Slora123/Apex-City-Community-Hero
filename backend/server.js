@@ -1,12 +1,13 @@
 'use strict';
 
-require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const path = require('path');
 
 // ── Initialize DB (runs schema + seed if needed) ─────────────────────────
 const db = require('./db/init');
@@ -58,6 +59,10 @@ app.use(cors({
   origin: true, // Allow any origin (reflects request origin) to support Vercel deployments
   credentials: true
 }));
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

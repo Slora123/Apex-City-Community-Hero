@@ -5,10 +5,23 @@ const fs = require('fs');
 const path = require('path');
 
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+const sslConfig = () => {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || 
+      dbUrl.includes('localhost') || 
+      dbUrl.includes('127.0.0.1') || 
+      dbUrl.includes('sslmode=disable') ||
+      process.env.PGSSLMODE === 'disable') {
+    return false;
+  }
+  return { rejectUnauthorized: false };
+};
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Required for Neon
+  ssl: sslConfig()
 });
 
 // Utility wrapper to match some of the old synchronous feel
@@ -40,10 +53,9 @@ async function initDB() {
     const res = await pool.query('SELECT COUNT(*) as c FROM issues');
     const issueCount = parseInt(res.rows[0].c, 10);
     
-    // We are no longer seeding demo data automatically
-    // if (issueCount === 0) {
-    //   await seedDemoData();
-    // }
+    if (issueCount === 0) {
+      await seedDemoData();
+    }
   } catch (err) {
     console.error('❌ Database initialization error:', err);
   }

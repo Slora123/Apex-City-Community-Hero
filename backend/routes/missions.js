@@ -45,13 +45,14 @@ router.get('/', optionalAuth, async (req, res) => {
       query += ` AND m.status = $${params.length}`;
     }
 
-    // Exclude own reports unless testing mode
-    if (req.userId && testing !== 'true') {
+    // Exclude own reports unless testing mode or in local development
+    if (req.userId && testing !== 'true' && process.env.NODE_ENV === 'production') {
       params.push(req.userId);
       query += ` AND i.reporter_id != $${params.length}`;
     }
 
-    if (userCity) {
+    // Filter by city in production to keep user experience localized
+    if (userCity && process.env.NODE_ENV === 'production') {
       params.push(userCity);
       query += ` AND (reporter.city = $${params.length} OR i.address ILIKE '%' || $${params.length} || '%')`;
     }
