@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getMe, getMissions, submitIssue, getStoredUser, getToken, healthCheck, getImageUrl } from '../api';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useSocket } from '../hooks/useSocket';
 
 const GameContext = createContext();
 
@@ -44,6 +45,8 @@ export const GameProvider = ({ children }) => {
   const [missions, setMissions] = useState([]);
   const [isBackendOnline, setIsBackendOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // Toast for real-time mission activation notifications
+  const [missionToast, setMissionToast] = useState(null);
 
   // Background Music State
   const [volume, setVolume] = useState(() => {
@@ -181,6 +184,24 @@ export const GameProvider = ({ children }) => {
     init();
   }, [refreshHero, refreshMissions]);
 
+  // ── Real-time: refresh missions when a new one activates ──────────────
+  useSocket({
+    mission_activated: (data) => {
+      // Show a brief toast, then auto-refresh the mission list
+      setMissionToast({ title: data.title, message: data.message });
+      setTimeout(() => setMissionToast(null), 5000);
+      refreshMissions();
+    },
+    new_issue: () => {
+      // Refresh so pending reporter counts stay up to date
+      refreshMissions();
+    },
+    confirm_issue_needed: () => {
+      // A new pending issue was reported — refresh so the locked card appears
+      refreshMissions();
+    }
+  });
+
   // ── Sync with Firebase Auth state changes ─────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -277,10 +298,8 @@ export const GameProvider = ({ children }) => {
       refreshMissions,
       isBackendOnline,
       isLoading,
-      volume,
-      setVolume,
-      isMuted,
-      setIsMuted
+      missionToast,
+      clearMissionToast: () => setMissionToast(null)
     }}>
       {children}
     </GameContext.Provider>

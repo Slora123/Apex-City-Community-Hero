@@ -267,6 +267,16 @@ router.post('/', requireAuth, (req, res) => {
         if (existingIssue.status === 'pending' && reportOrder >= requiredReports) {
           await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [issueId]);
           await db.query("UPDATE missions SET status = 'Active' WHERE issue_id = $1", [issueId]);
+
+          // Fetch the activated mission id so we can notify clients
+          const activatedMissionRes = await db.query('SELECT id FROM missions WHERE issue_id = $1 LIMIT 1', [issueId]);
+          const activatedMission = activatedMissionRes.rows[0];
+          // Fetch the updated issue for the notification payload
+          const activatedIssueRes = await db.query('SELECT * FROM issues WHERE id = $1', [issueId]);
+          const activatedIssue = activatedIssueRes.rows[0];
+          if (activatedIssue && activatedMission) {
+            notifications.notifyMissionActivated(activatedIssue, activatedMission.id);
+          }
         }
       } else {
         // Create new issue

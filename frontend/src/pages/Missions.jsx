@@ -170,46 +170,55 @@ export const BrokenLightIllustration = ({ repaired = false }) => (
 export default function Missions() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hero, addXp, missions, updateMissionStatus, refreshMissions } = useGame();
+  const { hero, addXp, missions, updateMissionStatus, refreshMissions, missionToast, clearMissionToast } = useGame();
 
   // State Machine: 'list' | 'details' | 'capture_before' | 'capture_after' | 'verification' | 'success'
   const [view, setView] = useState('list');
   const [selectedMission, setSelectedMission] = useState(null);
   const [severity, setSeverity] = useState('Medium');
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
-  const [areaFilter, setAreaFilter] = useState('global'); // 'global' | 'local'
-  const [currentDistrict, setCurrentDistrict] = useState(() => {
-    return sessionStorage.getItem('ch_current_district') || hero.area || 'My Area';
-  });
- 
-  // Fetch nearby missions once on mount and geocode current district
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          refreshMissions();
+  // Quest tab: 'global' | 'local'
+  const [questTab, setQuestTab] = useState('local');
+  // Live locality name resolved from GPS (village > suburb > town > city)
+  const [localityName, setLocalityName] = useState('Nearby');
 
-          // Reverse geocode to get current district programmatically
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.address) {
-                const addr = data.address;
-                const districtName = addr.state_district || addr.district || addr.county || addr.city_district || addr.city || addr.town || addr.suburb || '';
-                if (districtName) {
-                  setCurrentDistrict(districtName);
-                  sessionStorage.setItem('ch_current_district', districtName);
-                }
-              }
-            })
-            .catch(err => console.warn('Could not reverse geocode current district:', err));
-        },
-        (err) => console.warn('Could not get location for mission filtering', err)
-      );
-    }
-  }, [refreshMissions, hero.area]);
+  // Fetch nearby missions + resolve current locality name from live GPS
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        refreshMissions(latitude, longitude);
+
+        // Reverse geocode with Nominatim to get the most precise locality
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`
+          );
+          const data = await res.json();
+          if (data?.address) {
+            const a = data.address;
+            // Priority: village > suburb > neighbourhood > town > city_district > city > county
+            const name =
+              a.village ||
+              a.suburb ||
+              a.neighbourhood ||
+              a.town ||
+              a.city_district ||
+              a.city ||
+              a.county ||
+              'Nearby';
+            setLocalityName(name);
+          }
+        } catch (err) {
+          console.warn('Reverse geocode failed for locality name:', err);
+        }
+      },
+      (err) => console.warn('Could not get location for mission filtering', err),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [refreshMissions]);
 
   // Track whether this mission was opened from the map's Accept flow
   const [fromMapAccept, setFromMapAccept] = useState(false);
@@ -761,6 +770,43 @@ export default function Missions() {
             <span>Mission Center</span>
           </div>
 
+          {/* ── MISSION ACTIVATED TOAST ── */}
+          {missionToast && (
+            <div
+              onClick={clearMissionToast}
+              style={{
+                position: 'fixed',
+                top: '16px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 99999,
+                background: 'linear-gradient(135deg, #2E6B2A, #1C4519)',
+                border: '3px solid #D4AF37',
+                borderRadius: '12px',
+                padding: '14px 20px',
+                maxWidth: '360px',
+                width: 'calc(100% - 32px)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                cursor: 'pointer',
+                animation: 'slideDown 0.3s ease-out'
+              }}
+            >
+              <span style={{ fontSize: '1.6rem', lineHeight: 1 }}>⚔️</span>
+              <div>
+                <div style={{ color: '#D4AF37', fontFamily: "'MedievalSharp', serif", fontWeight: 900, fontSize: '0.95rem', marginBottom: '4px' }}>
+                  New Quest Unlocked!
+                </div>
+                <div style={{ color: '#F4E8C1', fontSize: '0.82rem', fontWeight: 600, lineHeight: 1.4 }}>
+                  {missionToast.title} — confirmed by 3 reporters and now active!
+                </div>
+              </div>
+            </div>
+          )}
+          <style>{`@keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }`}</style>
+
           <button
             onClick={() => navigate('/map')}
             style={{
@@ -783,12 +829,13 @@ export default function Missions() {
             textAlign: 'center',
             textTransform: 'uppercase',
             letterSpacing: '1px',
-            margin: '15px 0 20px 0',
+            margin: '15px 0 12px 0',
             textShadow: '1px 1px 0 #000'
           }}>
             Quest Cards
           </h3>
 
+<<<<<<< HEAD
           {/* District Filter Tabs */}
           <div style={{ display: 'flex', width: '100%', marginBottom: '14px', background: 'rgba(45, 27, 19, 0.4)', borderRadius: '6px', padding: '3px', boxSizing: 'border-box' }}>
             <button
@@ -832,10 +879,58 @@ export default function Missions() {
               title={`Local: ${currentDistrict}`}
             >
               📍 Local ({currentDistrict})
+=======
+          {/* ── GLOBAL / LOCAL tabs ── */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button
+              onClick={() => setQuestTab('global')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: questTab === 'global' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
+                background: questTab === 'global' ? '#5C4033' : 'transparent',
+                color: questTab === 'global' ? '#F4E8C1' : '#B3A387',
+                fontFamily: "'MedievalSharp', serif",
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              🌍 GLOBAL QUESTS
+            </button>
+            <button
+              onClick={() => setQuestTab('local')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: questTab === 'local' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
+                background: questTab === 'local' ? '#5C4033' : 'transparent',
+                color: questTab === 'local' ? '#F4E8C1' : '#B3A387',
+                fontFamily: "'MedievalSharp', serif",
+                fontWeight: 700,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                transition: 'all 0.15s'
+              }}
+            >
+              📍 LOCAL ({localityName.toUpperCase()})
+>>>>>>> bfd24d4 (frontend issues solved)
             </button>
           </div>
 
           <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+<<<<<<< HEAD
             {(() => {
               const list = missions
                 .filter(m => m.status !== 'completed')
@@ -846,6 +941,20 @@ export default function Missions() {
                     m.type === 'waste' ||
                     (m.title && m.title.toLowerCase().includes('waste')) ||
                     (m.description && m.description.toLowerCase().includes('waste'));
+=======
+            {missions.filter(m => {
+              if (m.status === 'completed') return false;
+              // Local tab: only show missions within ~10km; Global tab: show all
+              if (questTab === 'local') {
+                return m.distance == null || m.distance <= 10;
+              }
+              return true;
+            }).map(m => (
+              <div key={m.id} className="parchment-card">
+                <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
+                  {getIllustration(m.type, false)}
+                </div>
+>>>>>>> bfd24d4 (frontend issues solved)
 
                   if (areaFilter === 'global') {
                     // Global tab shows all active quests
@@ -915,6 +1024,7 @@ export default function Missions() {
                     {getIllustration(m.type, false)}
                   </div>
 
+<<<<<<< HEAD
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.aiAnalysis?.missionTitle || m.title}
@@ -942,6 +1052,60 @@ export default function Missions() {
                 </div>
               ));
             })()}
+=======
+                  {/* Reporter confirmation progress — visible while pending */}
+                  {m.status === 'Pending Verification' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        {[1, 2, 3].map(n => (
+                          <div
+                            key={n}
+                            style={{
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              background: n <= (m.reporter_count || 1) ? '#D4AF37' : '#5A4B3D',
+                              border: '1.5px solid #3E2D24',
+                              boxShadow: n <= (m.reporter_count || 1) ? '0 0 6px #D4AF37' : 'none',
+                              transition: 'all 0.3s'
+                            }}
+                          />
+                        ))}
+                        <span style={{ fontSize: '0.7rem', color: '#8B5E34', fontWeight: 700 }}>
+                          {m.reporter_count || 1}/3 confirmed — {3 - (m.reporter_count || 1)} more to unlock
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleOpenDetails(m)}
+                  className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
+                  style={{
+                    flexShrink: 0,
+                    ...(m.status === 'Pending Verification' ? { opacity: 0.55, cursor: 'default', background: '#5C4033', border: '2px solid #3E2D24' } : {})
+                  }}
+                  disabled={m.status === 'Pending Verification'}
+                  title={m.status === 'Pending Verification' ? 'Needs 3 reports to unlock' : ''}
+                >
+                  {m.status === 'Pending Verification' ? '🔒' : (m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept')}
+                </button>
+              </div>
+            ))}
+
+            {missions.filter(m => {
+              if (m.status === 'completed') return false;
+              if (questTab === 'local') return m.distance == null || m.distance <= 10;
+              return true;
+            }).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic' }}>
+                {questTab === 'local'
+                  ? `No quests near ${localityName} right now. Return to the Map to report new anomalies.`
+                  : 'All petitions resolved! Return to the Map to report new anomalies.'}
+              </div>
+            )}
+>>>>>>> bfd24d4 (frontend issues solved)
           </div>
         </div>
       )}

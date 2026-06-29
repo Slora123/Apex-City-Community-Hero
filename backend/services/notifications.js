@@ -101,6 +101,31 @@ function notifyVerificationNeeded(issue) {
   });
 }
 
+/**
+ * Emit mission_activated when a pending issue reaches the reporter threshold
+ * and its mission flips to Active. All connected clients should refresh their
+ * missions list so the new quest card appears immediately.
+ */
+function notifyMissionActivated(issue, missionId) {
+  if (!io) {
+    console.log(`[Push Notification Mock] mission_activated for issue ${issue.id}`);
+    return;
+  }
+  io.emit('mission_activated', {
+    missionId,
+    issueId: issue.id,
+    title: issue.title,
+    type: issue.type,
+    severity: issue.severity,
+    lat: issue.lat,
+    lng: issue.lng,
+    address: issue.address,
+    reporterCount: issue.reporter_count,
+    message: `⚔️ New Quest Unlocked: "${issue.title}" — enough reports confirmed, a mission is now active!`,
+    timestamp: new Date().toISOString()
+  });
+}
+
 module.exports = {
   init,
   notifyNewIssue,
@@ -108,5 +133,6 @@ module.exports = {
   notifyIssueResolved,
   notifyXPAwarded,
   notifyAchievement,
-  notifyVerificationNeeded
+  notifyVerificationNeeded,
+  notifyMissionActivated
 };

@@ -344,26 +344,40 @@ body {
   min-height: 100vh;
   padding: clamp(8px, 4vw, 24px);
   box-sizing: border-box;
-  background-image: url('/landing.png');
+  background-image: url('/map_bg.png');
   background-size: cover;
   background-position: center;
+  background-attachment: fixed;
 }
 
 @media (max-width: 768px) {
   .login-page {
-    background-image: url('/landing_mobile.png');
+    background-attachment: scroll;
+    background-image: url('/map_bg.png');
+    padding: 12px 12px 24px;
   }
 }
 
 .login-card {
   position: relative;
   width: 100%;
-  max-width: min(520px, 100%);
+  max-width: 420px;
+  background-color: #3e2723;
+  background-image: url('/panel_bg.png');
+  background-size: 100% 100%;
+  border: 6px double #8B5E34;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(212,175,55,0.15);
+  padding: 40px 28px 32px;
+  box-sizing: border-box;
 }
 
 @media (max-width: 480px) {
   .login-page {
     padding: 8px;
+  }
+  .login-card {
+    padding: 36px 20px 28px;
   }
 }
 
