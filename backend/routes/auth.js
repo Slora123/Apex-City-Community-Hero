@@ -189,9 +189,16 @@ router.post('/authority/unlock', async (req, res) => {
     const locationName = cityPrefix.charAt(0).toUpperCase() + cityPrefix.slice(1);
 
     // Fetch real issues for this location from the database
+    // Issues don't have a city column — match on address text or reporter's city
     const issuesRes = await db.query(
-      "SELECT * FROM issues WHERE address ILIKE $1 OR city ILIKE $1 ORDER BY created_at DESC LIMIT 15",
-      [`%${locationName}%`]
+      `SELECT i.* FROM issues i
+       LEFT JOIN users u ON i.reporter_id = u.id
+       WHERE i.address ILIKE $1
+          OR u.city ILIKE $2
+          OR u.area ILIKE $2
+       ORDER BY i.created_at DESC
+       LIMIT 15`,
+      [`%${locationName}%`, `%${locationName}%`]
     );
 
     const realReports = issuesRes.rows.map(issue => {
