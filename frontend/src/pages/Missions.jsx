@@ -835,51 +835,6 @@ export default function Missions() {
             Quest Cards
           </h3>
 
-<<<<<<< HEAD
-          {/* District Filter Tabs */}
-          <div style={{ display: 'flex', width: '100%', marginBottom: '14px', background: 'rgba(45, 27, 19, 0.4)', borderRadius: '6px', padding: '3px', boxSizing: 'border-box' }}>
-            <button
-              onClick={() => setAreaFilter('global')}
-              style={{
-                flex: 1,
-                padding: '8px 0',
-                background: areaFilter === 'global' ? '#8B5E34' : 'transparent',
-                border: 'none',
-                borderRadius: '4px',
-                color: areaFilter === 'global' ? '#F4E8C1' : '#B3A387',
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontFamily: "'MedievalSharp', serif",
-                textTransform: 'uppercase',
-                transition: 'all 0.2s'
-              }}
-            >
-              🌍 Global Quests
-            </button>
-            <button
-              onClick={() => setAreaFilter('local')}
-              style={{
-                flex: 1,
-                padding: '8px 0',
-                background: areaFilter === 'local' ? '#8B5E34' : 'transparent',
-                border: 'none',
-                borderRadius: '4px',
-                color: areaFilter === 'local' ? '#F4E8C1' : '#B3A387',
-                fontSize: '0.8rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontFamily: "'MedievalSharp', serif",
-                textTransform: 'uppercase',
-                transition: 'all 0.2s',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}
-              title={`Local: ${currentDistrict}`}
-            >
-              📍 Local ({currentDistrict})
-=======
           {/* ── GLOBAL / LOCAL tabs ── */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             <button
@@ -925,106 +880,24 @@ export default function Missions() {
               }}
             >
               📍 LOCAL ({localityName.toUpperCase()})
->>>>>>> bfd24d4 (frontend issues solved)
             </button>
           </div>
 
           <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
-<<<<<<< HEAD
-            {(() => {
-              const list = missions
-                .filter(m => m.status !== 'completed')
-                .filter(m => {
-                  const isMyIssue = m.reporterId === hero.id;
-                  const isDirtyNeighbourhood = 
-                    m.category === 'Large Scale Public Waste Accumulation' || 
-                    m.type === 'waste' ||
-                    (m.title && m.title.toLowerCase().includes('waste')) ||
-                    (m.description && m.description.toLowerCase().includes('waste'));
-=======
-            {missions.filter(m => {
-              if (m.status === 'completed') return false;
-              // Local tab: only show missions within ~10km; Global tab: show all
-              if (questTab === 'local') {
-                return m.distance == null || m.distance <= 10;
-              }
-              return true;
-            }).map(m => (
-              <div key={m.id} className="parchment-card">
-                <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
-                  {getIllustration(m.type, false)}
-                </div>
->>>>>>> bfd24d4 (frontend issues solved)
-
-                  if (areaFilter === 'global') {
-                    // Global tab shows all active quests
-                    return true;
-                  } else {
-                    // Local view
-                    if (isDirtyNeighbourhood) {
-                      // Only show dirty neighbourhood in local view if user's district is Vasai-Virar
-                      const userArea = currentDistrict.toLowerCase();
-                      const userCity = (hero.city || '').toLowerCase();
-                      return userArea.includes('vasai') || userArea.includes('virar') || userCity.includes('vasai') || userCity.includes('virar');
-                    }
-                    // Always show my other issues in my Local tab
-                    if (isMyIssue) return true;
-
-                    // Distance-based local fallback (within 50km radius)
-                    if (m.distance !== undefined && m.distance !== null && m.distance <= 50) return true;
-
-                    // Match the entire district as local (e.g. Alibag issues are local for Raigad users)
-                    const userArea = currentDistrict.toLowerCase().trim();
-                    const userCity = (hero.city || '').toLowerCase().trim();
-                    if (!userArea && !userCity) return true;
-
-                    const isUserInRaigad = userArea.includes('raigad') || userCity.includes('alibag') || userArea.includes('alibag') || userCity.includes('raigad');
-                    const isUserInVasai = userArea.includes('vasai') || userCity.includes('vasai') || userArea.includes('naigaon') || userCity.includes('naigaon') || userArea.includes('virar') || userCity.includes('virar');
-                    const isUserInNorthGoa = userArea.includes('north goa') || userCity.includes('panaji') || userCity.includes('panjim') || userCity.includes('mapusa');
-                    const isUserInSouthGoa = userArea.includes('south goa') || userCity.includes('margao') || userCity.includes('madgaon') || userCity.includes('vasco');
-
-                    const mLoc = (m.location || '').toLowerCase();
-                    const mRepArea = (m.reporterArea || '').toLowerCase();
-
-                    const isIssueInRaigad = mLoc.includes('alibag') || mLoc.includes('raigad') || mRepArea.includes('raigad') || mRepArea.includes('alibag');
-                    const isIssueInVasai = mLoc.includes('vasai') || mLoc.includes('virar') || mLoc.includes('naigaon') || mLoc.includes('umela') || mRepArea.includes('vasai') || mRepArea.includes('virar') || mRepArea.includes('naigaon') || mRepArea.includes('umela');
-                    const isIssueInNorthGoa = mLoc.includes('north goa') || mLoc.includes('panaji') || mLoc.includes('panjim') || mLoc.includes('mapusa') || mLoc.includes('calangute') || mRepArea.includes('north goa');
-                    const isIssueInSouthGoa = mLoc.includes('south goa') || mLoc.includes('margao') || mLoc.includes('madgaon') || mLoc.includes('vasco') || mLoc.includes('mormugao') || mRepArea.includes('south goa');
-
-                    if (isUserInRaigad && isIssueInRaigad) return true;
-                    if (isUserInVasai && isIssueInVasai) return true;
-                    if (isUserInNorthGoa && isIssueInNorthGoa) return true;
-                    if (isUserInSouthGoa && isIssueInSouthGoa) return true;
-
-                    // Goa general state-wide grouping fallback
-                    const isUserInGoa = userArea.includes('goa') || userCity.includes('goa');
-                    const isIssueInGoa = mLoc.includes('goa') || mRepArea.includes('goa');
-                    if (isUserInGoa && isIssueInGoa) return true;
-
-                    // Fallback to basic string match (works for any city/location globally)
-                    const isMatchArea = userArea && mRepArea.includes(userArea);
-                    const isMatchLoc = userArea && mLoc.includes(userArea);
-                    return isMatchArea || isMatchLoc;
-                  }
-                });
-
-              if (list.length === 0) {
-                return (
-                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic', fontWeight: 600 }}>
-                    {areaFilter === 'local' 
-                      ? `No active quests in ${currentDistrict} yet!` 
-                      : 'All petitions resolved! Return to the Map to report new anomalies.'}
-                  </div>
-                );
-              }
-
-              return list.map(m => (
+            {missions
+              .filter(m => m.status !== 'completed')
+              .filter(m => {
+                if (questTab === 'local') {
+                  return m.distance == null || m.distance <= 10;
+                }
+                return true;
+              })
+              .map(m => (
                 <div key={m.id} className="parchment-card">
                   <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
                     {getIllustration(m.type, false)}
                   </div>
 
-<<<<<<< HEAD
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.aiAnalysis?.missionTitle || m.title}
@@ -1040,59 +913,47 @@ export default function Missions() {
                       <Award size={14} />
                       <span>Reward: {m.aiAnalysis?.estimatedReward || 0} XP</span>
                     </div>
+
+                    {/* Reporter confirmation progress — visible while pending */}
+                    {m.status === 'Pending Verification' && (
+                      <div style={{ marginTop: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          {[1, 2, 3].map(n => (
+                            <div
+                              key={n}
+                              style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                background: n <= (m.reporter_count || 1) ? '#D4AF37' : '#5A4B3D',
+                                border: '1.5px solid #3E2D24',
+                                boxShadow: n <= (m.reporter_count || 1) ? '0 0 6px #D4AF37' : 'none',
+                                transition: 'all 0.3s'
+                              }}
+                            />
+                          ))}
+                          <span style={{ fontSize: '0.7rem', color: '#8B5E34', fontWeight: 700 }}>
+                            {m.reporter_count || 1}/3 confirmed — {3 - (m.reporter_count || 1)} more to unlock
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <button
                     onClick={() => handleOpenDetails(m)}
                     className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
-                    style={{ flexShrink: 0 }}
+                    style={{
+                      flexShrink: 0,
+                      ...(m.status === 'Pending Verification' ? { opacity: 0.55, cursor: 'default', background: '#5C4033', border: '2px solid #3E2D24' } : {})
+                    }}
+                    disabled={m.status === 'Pending Verification'}
+                    title={m.status === 'Pending Verification' ? 'Needs 3 reports to unlock' : ''}
                   >
-                    {m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept'}
+                    {m.status === 'Pending Verification' ? '🔒' : (m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept')}
                   </button>
                 </div>
-              ));
-            })()}
-=======
-                  {/* Reporter confirmation progress — visible while pending */}
-                  {m.status === 'Pending Verification' && (
-                    <div style={{ marginTop: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        {[1, 2, 3].map(n => (
-                          <div
-                            key={n}
-                            style={{
-                              width: '10px',
-                              height: '10px',
-                              borderRadius: '50%',
-                              background: n <= (m.reporter_count || 1) ? '#D4AF37' : '#5A4B3D',
-                              border: '1.5px solid #3E2D24',
-                              boxShadow: n <= (m.reporter_count || 1) ? '0 0 6px #D4AF37' : 'none',
-                              transition: 'all 0.3s'
-                            }}
-                          />
-                        ))}
-                        <span style={{ fontSize: '0.7rem', color: '#8B5E34', fontWeight: 700 }}>
-                          {m.reporter_count || 1}/3 confirmed — {3 - (m.reporter_count || 1)} more to unlock
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => handleOpenDetails(m)}
-                  className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
-                  style={{
-                    flexShrink: 0,
-                    ...(m.status === 'Pending Verification' ? { opacity: 0.55, cursor: 'default', background: '#5C4033', border: '2px solid #3E2D24' } : {})
-                  }}
-                  disabled={m.status === 'Pending Verification'}
-                  title={m.status === 'Pending Verification' ? 'Needs 3 reports to unlock' : ''}
-                >
-                  {m.status === 'Pending Verification' ? '🔒' : (m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept')}
-                </button>
-              </div>
-            ))}
+              ))}
 
             {missions.filter(m => {
               if (m.status === 'completed') return false;
@@ -1105,7 +966,6 @@ export default function Missions() {
                   : 'All petitions resolved! Return to the Map to report new anomalies.'}
               </div>
             )}
->>>>>>> bfd24d4 (frontend issues solved)
           </div>
         </div>
       )}
