@@ -179,8 +179,10 @@ export default function Missions() {
   const [gpsStatus, setGpsStatus] = useState('Connecting...');
   // Quest tab: 'global' | 'local'
   const [questTab, setQuestTab] = useState('local');
-  // Live locality name resolved from GPS (village > suburb > town > city)
-  const [localityName, setLocalityName] = useState('Nearby');
+  // Live locality name resolved from GPS (saved in sessionStorage or fallback to hero profile)
+  const [localityName, setLocalityName] = useState(() => {
+    return sessionStorage.getItem('ch_current_district') || (hero && (hero.area || hero.city)) || 'Nearby';
+  });
 
   // Fetch nearby missions + resolve current locality name from live GPS
   useEffect(() => {
@@ -199,17 +201,22 @@ export default function Missions() {
           const data = await res.json();
           if (data?.address) {
             const a = data.address;
-            // Priority: village > suburb > neighbourhood > town > city_district > city > county
+            // Priority: state_district > district > county > city_district > city > town > suburb > village > neighbourhood
             const name =
-              a.village ||
-              a.suburb ||
-              a.neighbourhood ||
-              a.town ||
+              a.state_district ||
+              a.district ||
+              a.county ||
               a.city_district ||
               a.city ||
-              a.county ||
+              a.town ||
+              a.suburb ||
+              a.village ||
+              a.neighbourhood ||
               'Nearby';
             setLocalityName(name);
+            if (name && name !== 'Nearby') {
+              sessionStorage.setItem('ch_current_district', name);
+            }
           }
         } catch (err) {
           console.warn('Reverse geocode failed for locality name:', err);
