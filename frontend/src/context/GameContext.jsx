@@ -247,12 +247,7 @@ export const GameProvider = ({ children }) => {
 
   // ── Update mission status locally ──────────────────────────────────────
   const updateMissionStatus = (id, newStatus) => {
-    if (newStatus === 'completed' || newStatus === 'rejected') {
-      // Remove completed/rejected missions from the list immediately
-      setMissions(prev => prev.filter(m => m.id !== id));
-    } else {
-      setMissions(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
-    }
+    setMissions(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
   };
 
 

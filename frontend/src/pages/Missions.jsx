@@ -17,8 +17,10 @@ import {
   RefreshCw,
   Eye,
   AlertCircle,
-  UploadCloud
+  UploadCloud,
+  History
 } from 'lucide-react';
+
 
 /* ── CUSTOM CARTOON SVG ILLUSTRATIONS (BEFORE & AFTER STATES) ─────── */
 
@@ -227,6 +229,12 @@ export default function Missions() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, [refreshMissions]);
+
+  // Refresh missions list when user switches tabs (e.g. to Completed)
+  useEffect(() => {
+    refreshMissions();
+  }, [questTab, refreshMissions]);
+
 
   // Track whether this mission was opened from the map's Accept flow
   const [fromMapAccept, setFromMapAccept] = useState(false);
@@ -913,6 +921,31 @@ export default function Missions() {
           )}
           <style>{`@keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }`}</style>
 
+          {/* History Icon (Top Left) */}
+          <button
+            onClick={() => setQuestTab(prev => prev === 'completed' ? 'local' : 'completed')}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: questTab === 'completed' ? '#D4AF37' : '#C4A484',
+              cursor: 'pointer',
+              outline: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: 'all 0.2s',
+              zIndex: 10
+            }}
+            title="Past Completed Quests"
+          >
+            <History size={26} style={{ filter: questTab === 'completed' ? 'drop-shadow(0 0 6px #D4AF37)' : 'none' }} />
+          </button>
+
           <button
             onClick={() => navigate('/map')}
             style={{
@@ -938,61 +971,67 @@ export default function Missions() {
             margin: '15px 0 12px 0',
             textShadow: '1px 1px 0 #000'
           }}>
-            Quest Cards
+            {questTab === 'completed' ? '📜 Completed Quests' : 'Quest Cards'}
           </h3>
 
           {/* ── GLOBAL / LOCAL tabs ── */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <button
-              onClick={() => setQuestTab('global')}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: questTab === 'global' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
-                background: questTab === 'global' ? '#5C4033' : 'transparent',
-                color: questTab === 'global' ? '#F4E8C1' : '#B3A387',
-                fontFamily: "'MedievalSharp', serif",
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.15s'
-              }}
-            >
-              🌍 GLOBAL QUESTS
-            </button>
-            <button
-              onClick={() => setQuestTab('local')}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: '8px',
-                border: questTab === 'local' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
-                background: questTab === 'local' ? '#5C4033' : 'transparent',
-                color: questTab === 'local' ? '#F4E8C1' : '#B3A387',
-                fontFamily: "'MedievalSharp', serif",
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.15s'
-              }}
-            >
-              📍 LOCAL ({localityName.toUpperCase()})
-            </button>
-          </div>
+          {questTab !== 'completed' && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                onClick={() => setQuestTab('global')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: questTab === 'global' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
+                  background: questTab === 'global' ? '#5C4033' : 'transparent',
+                  color: questTab === 'global' ? '#F4E8C1' : '#B3A387',
+                  fontFamily: "'MedievalSharp', serif",
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s'
+                }}
+              >
+                🌍 GLOBAL QUESTS
+              </button>
+              <button
+                onClick={() => setQuestTab('local')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: questTab === 'local' ? '2px solid #D4AF37' : '2px solid #5A4B3D',
+                  background: questTab === 'local' ? '#5C4033' : 'transparent',
+                  color: questTab === 'local' ? '#F4E8C1' : '#B3A387',
+                  fontFamily: "'MedievalSharp', serif",
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s'
+                }}
+              >
+                📍 LOCAL ({localityName.toUpperCase()})
+              </button>
+            </div>
+          )}
 
           <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
             {missions
-              .filter(m => m.status !== 'completed')
+              .filter(m => questTab === 'completed' ? m.status === 'completed' : m.status !== 'completed')
               .filter(m => {
+                if (questTab === 'completed') {
+                  // Show all completed missions
+                  return true;
+                }
                 if (questTab === 'local') {
                   const isMyIssue = m.reporterId === hero.id;
                   const isDirtyNeighbourhood = 
@@ -1052,9 +1091,29 @@ export default function Missions() {
               })
               .map(m => (
                 <div key={m.id} className="parchment-card">
-                  <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
-                    {getIllustration(m.type, false)}
-                  </div>
+                  {m.status === 'completed' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      <div style={{ width: '48px', height: '42px', borderRadius: '4px', overflow: 'hidden', border: '1.5px solid #5A4B3D', background: '#e0d6b8' }}>
+                        {m.photoUrl ? (
+                          <img src={m.photoUrl} alt="Before" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          getIllustration(m.type, false)
+                        )}
+                      </div>
+                      <span style={{ fontSize: '1rem', color: '#2E6B2A', fontWeight: 'bold' }}>➜</span>
+                      <div style={{ width: '48px', height: '42px', borderRadius: '4px', overflow: 'hidden', border: '1.5px solid #2E6B2A', background: '#e0d6b8' }}>
+                        {m.afterPhotoUrl ? (
+                          <img src={m.afterPhotoUrl} alt="After" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          getIllustration(m.type, true)
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ width: '72px', height: '64px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, border: '2px solid #5A4B3D' }}>
+                      {getIllustration(m.type, false)}
+                    </div>
+                  )}
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 className="medieval-font" style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1100,7 +1159,7 @@ export default function Missions() {
 
                   <button
                     onClick={() => handleOpenDetails(m)}
-                    className={m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green'}
+                    className={m.status === 'completed' ? 'medieval-btn-brown' : (m.aiAnalysis?.handler === 'Authority' ? 'medieval-btn-brown' : 'medieval-btn-green')}
                     style={{
                       flexShrink: 0,
                       ...(m.status === 'Pending Verification' ? { opacity: 0.55, cursor: 'default', background: '#5C4033', border: '2px solid #3E2D24' } : {})
@@ -1108,23 +1167,39 @@ export default function Missions() {
                     disabled={m.status === 'Pending Verification'}
                     title={m.status === 'Pending Verification' ? 'Needs 3 reports to unlock' : ''}
                   >
-                    {m.status === 'Pending Verification' ? '🔒' : (m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept')}
+                    {m.status === 'Pending Verification' ? '🔒' : (m.status === 'completed' ? 'View' : (m.aiAnalysis?.handler === 'Authority' ? 'View' : 'Accept'))}
                   </button>
                 </div>
               ))}
 
             {missions.filter(m => {
+              if (questTab === 'completed') return m.status === 'completed';
               if (m.status === 'completed') return false;
               if (questTab === 'local') return m.distance == null || m.distance <= 10;
               return true;
             }).length === 0 && (
               <div style={{ textAlign: 'center', padding: '40px 20px', color: '#B3A387', fontStyle: 'italic' }}>
-                {questTab === 'local'
-                  ? `No quests near ${localityName} right now. Return to the Map to report new anomalies.`
-                  : 'All petitions resolved! Return to the Map to report new anomalies.'}
+                {questTab === 'completed' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+                    <span>No completed quests found yet. Set forth and solve anomalies!</span>
+                    <button
+                      onClick={() => setQuestTab('local')}
+                      className="medieval-btn-green"
+                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                    >
+                      View Active Quests
+                    </button>
+                  </div>
+                ) : questTab === 'local' ? (
+                  `No quests near ${localityName} right now. Return to the Map to report new anomalies.`
+                ) : (
+                  'All petitions resolved! Return to the Map to report new anomalies.'
+                )}
               </div>
             )}
           </div>
+
+
         </div>
       )}
 

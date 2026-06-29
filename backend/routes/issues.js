@@ -262,8 +262,8 @@ router.post('/', requireAuth, (req, res) => {
         // Update reporter count on issue
         await db.query('UPDATE issues SET reporter_count = reporter_count + 1 WHERE id = $1', [issueId]);
 
-        // Confidence threshold logic: AI confidence increases with multiple reports
-        const requiredReports = testing === 'true' ? 1 : 3;
+        // Any co-report on the same issue keeps it active
+        const requiredReports = 1;
         if (existingIssue.status === 'pending' && reportOrder >= requiredReports) {
           await db.query("UPDATE issues SET status = 'active' WHERE id = $1", [issueId]);
           await db.query("UPDATE missions SET status = 'Active' WHERE issue_id = $1", [issueId]);
@@ -283,7 +283,8 @@ router.post('/', requireAuth, (req, res) => {
         issueId = uuidv4();
         isNew = true;
         reportOrder = 1;
-        const initialStatus = testing === 'true' ? 'active' : 'pending';
+        // Every new report immediately becomes an Active issue & mission
+        const initialStatus = 'active';
 
         await db.query(`
           INSERT INTO issues (id, title, type, category, severity, priority, lat, lng, address, status, reporter_id, reporter_count, photo_path, description, ai_analysis)
@@ -305,9 +306,9 @@ router.post('/', requireAuth, (req, res) => {
           JSON.stringify(aiAnalysis)
         ]);
 
-        // Create a mission for this issue
+        // Create an Active mission immediately on first report
         const missionId = uuidv4();
-        const initialMissionStatus = testing === 'true' ? 'Active' : 'Pending Verification';
+        const initialMissionStatus = 'Active';
         await db.query(`
           INSERT INTO missions (id, issue_id, status) VALUES ($1, $2, $3)
         `, [missionId, issueId, initialMissionStatus]);
@@ -341,11 +342,8 @@ router.post('/', requireAuth, (req, res) => {
       const reporterRes = await db.query('SELECT * FROM users WHERE id = $1', [req.userId]);
       const reporter = reporterRes.rows[0];
       
-      if (isNew && issue.status === 'pending') {
-        notifications.notifyConfirmIssue(issue);
-      } else {
-        notifications.notifyNewIssue(issue, reporter);
-      }
+      // Issue is always Active immediately — broadcast the new mission to all clients
+      notifications.notifyNewIssue(issue, reporter);
 
       res.status(isNew ? 201 : 200).json({
         success: true,

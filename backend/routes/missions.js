@@ -47,7 +47,7 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(status);
       query += ` AND m.status = $${params.length}`;
     } else {
-      query += ` AND m.status NOT IN ('Pending Verification', 'completed', 'rejected')`;
+      query += ` AND m.status NOT IN ('Pending Verification', 'rejected')`;
     }
 
 
