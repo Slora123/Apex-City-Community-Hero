@@ -32,20 +32,22 @@ router.get('/', optionalAuth, async (req, res) => {
              i.lat as issue_lat, i.lng as issue_lng, i.address, i.description,
              i.photo_path, i.reporter_count, i.status as issue_status, i.ai_analysis,
              i.reporter_id as reporter_id,
-             u.name as assignee_name, reporter.area as reporter_area
+             u.name as assignee_name, reporter.area as reporter_area,
+             (SELECT COUNT(*) FROM verifications v WHERE v.mission_id = m.id) as verification_count
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
       LEFT JOIN users u ON m.assignee_id = u.id
       JOIN users reporter ON i.reporter_id = reporter.id
       WHERE i.reporter_id NOT LIKE 'demo-%' AND i.id NOT LIKE 'issue-%'
     `;
+
     const params = [];
 
     if (status !== 'all') {
       params.push(status);
       query += ` AND m.status = $${params.length}`;
     } else {
-      query += ` AND m.status != 'Pending Verification'`;
+      query += ` AND m.status NOT IN ('Pending Verification', 'completed', 'rejected')`;
     }
 
 
@@ -71,6 +73,14 @@ router.get('/', optionalAuth, async (req, res) => {
       missions.sort((a, b) => (a.distance || 999) - (b.distance || 999));
     }
 
+    let userVerdicts = {};
+    if (req.userId) {
+      const verifsRes = await db.query('SELECT mission_id, verdict FROM verifications WHERE verifier_id = $1', [req.userId]);
+      for (const row of verifsRes.rows) {
+        userVerdicts[row.mission_id] = row.verdict;
+      }
+    }
+
     const enriched = missions.map(m => {
       const aiAnalysis = m.ai_analysis ? JSON.parse(m.ai_analysis) : {};
       // Override estimatedReward with deterministic value
@@ -80,7 +90,8 @@ router.get('/', optionalAuth, async (req, res) => {
         aiAnalysis,
         photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
         beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
-        afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null
+        afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null,
+        myVerdict: userVerdicts[m.id] || null
       };
     });
 
@@ -102,7 +113,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
              i.title as issue_title, i.type as issue_type, i.category, i.severity, i.priority,
              i.lat as issue_lat, i.lng as issue_lng, i.address, i.description,
              i.photo_path, i.reporter_count, i.status as issue_status, i.ai_analysis,
-             u.name as assignee_name, u.level as assignee_level
+             u.name as assignee_name, u.level as assignee_level,
+             (SELECT COUNT(*) FROM verifications v WHERE v.mission_id = m.id) as verification_count
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
       LEFT JOIN users u ON m.assignee_id = u.id
@@ -118,12 +130,22 @@ router.get('/:id', optionalAuth, async (req, res) => {
     const aiAnalysis = m.ai_analysis ? JSON.parse(m.ai_analysis) : {};
     aiAnalysis.estimatedReward = calculateSolveReward(m.category, m.severity, 'resolved');
     
+    let myVerdict = null;
+    if (req.userId) {
+      const verifRes = await db.query('SELECT verdict FROM verifications WHERE mission_id = $1 AND verifier_id = $2', [req.params.id, req.userId]);
+      if (verifRes.rows.length > 0) {
+        myVerdict = verifRes.rows[0].verdict;
+      }
+    }
+
     const enriched = {
       ...m,
       aiAnalysis,
       photoUrl: m.photo_path ? `/uploads/${m.photo_path}` : null,
       beforePhotoUrl: m.before_photo ? `/uploads/${m.before_photo}` : null,
-      afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null
+      afterPhotoUrl: m.after_photo ? `/uploads/${m.after_photo}` : null,
+      myVerdict,
+      verification_count: parseInt(m.verification_count || 0, 10)
     };
 
     res.json(enriched);
@@ -250,7 +272,8 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
       }
 
       let nextStatus = 'Awaiting Community Verification';
-      if (comparison.verdict === 'Not Resolved' || comparison.verdict === 'Invalid') {
+      const normalizedVerdict = (comparison.verdict || '').toLowerCase().replace('_', ' ');
+      if (normalizedVerdict === 'not resolved' || normalizedVerdict === 'invalid') {
         nextStatus = 'Rejected';
       }
 
@@ -267,6 +290,7 @@ router.post('/:id/after-photo', requireAuth, (req, res) => {
         success: true,
         afterPhotoUrl: `/uploads/${afterPath}`,
         comparison,
+        pointsAwarded: comparison.estimatedReward || 100,
         message: 'After photo saved! AI comparison complete. Submit for community verification.'
       });
     } catch (err) {
@@ -289,15 +313,26 @@ router.post('/:id/verify', requireAuth, async (req, res) => {
       return res.status(400).json({ error: `Invalid verdict. Use: ${validVerdicts.join(', ')}` });
     }
 
+    const verifierRes = await db.query('SELECT city, area FROM users WHERE id = $1', [req.userId]);
+    const verifier = verifierRes.rows[0];
+    if (!verifier) return res.status(404).json({ error: 'Verifier user not found' });
+
     const missionRes = await db.query(`
-      SELECT m.*, i.type as issue_type, i.severity, i.title as issue_title, i.address
+      SELECT m.*, i.type as issue_type, i.severity, i.title as issue_title, i.address,
+             reporter.area as reporter_area
       FROM missions m
       JOIN issues i ON m.issue_id = i.id
+      JOIN users reporter ON i.reporter_id = reporter.id
       WHERE m.id = $1
     `, [req.params.id]);
     const mission = missionRes.rows[0];
 
     if (!mission) return res.status(404).json({ error: 'Mission not found' });
+
+    if (!isSameLocation(verifier.city, verifier.area, mission.address, mission.reporter_area)) {
+      return res.status(403).json({ error: 'Only heroes from this district/location are allowed to verify this mission.' });
+    }
+
     if (mission.assignee_id === req.userId) return res.status(403).json({ error: 'You cannot verify your own mission' });
 
     // Check for duplicate verification
@@ -321,22 +356,33 @@ router.post('/:id/verify', requireAuth, async (req, res) => {
     const allVerifications = allVerificationsRes.rows;
     const totalVerifs = allVerifications.length;
 
-    const fullyResolved = allVerifications.filter(v => v.verdict === 'Fully Resolved').length;
-    const partiallyResolved = allVerifications.filter(v => v.verdict === 'Partially Resolved').length;
-    const notResolved = allVerifications.filter(v => v.verdict === 'Not Resolved').length;
+    const fullyResolved = allVerifications.filter(v => {
+      const vNorm = (v.verdict || '').toLowerCase().replace('_', ' ');
+      return vNorm === 'fully resolved' || vNorm === 'resolved';
+    }).length;
+    const partiallyResolved = allVerifications.filter(v => {
+      const vNorm = (v.verdict || '').toLowerCase().replace('_', ' ');
+      return vNorm === 'partially resolved';
+    }).length;
+    const notResolved = allVerifications.filter(v => {
+      const vNorm = (v.verdict || '').toLowerCase().replace('_', ' ');
+      return vNorm === 'not resolved';
+    }).length;
 
     let finalVerdict = null;
     let missionCompleted = false;
 
-    // Auto-complete after 3+ verifications with clear consensus
-    if (totalVerifs >= 3) {
-      if (fullyResolved > (partiallyResolved + notResolved)) {
+    // Auto-complete after 2 verifications with consensus
+    if (totalVerifs >= 2) {
+      if (fullyResolved >= 2) {
         finalVerdict = 'Fully Resolved';
-      } else if (partiallyResolved >= fullyResolved) {
+      } else if (fullyResolved + partiallyResolved >= 2) {
         finalVerdict = 'Partially Resolved';
       } else {
         finalVerdict = 'Not Resolved';
       }
+
+      console.log(`[verify] totalVerifs=${totalVerifs} fullyResolved=${fullyResolved} finalVerdict=${finalVerdict}`);
 
       if (finalVerdict !== 'Not Resolved') {
         // Complete the mission and award the solver
@@ -346,22 +392,29 @@ router.post('/:id/verify', requireAuth, async (req, res) => {
         await db.query(`
           UPDATE missions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1
         `, [req.params.id]);
+        console.log(`[verify] Mission ${req.params.id} marked completed`);
 
         await db.query("UPDATE issues SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = $1", [mission.issue_id]);
 
         if (mission.assignee_id) {
-          const xpResult = await awardXP(db, mission.assignee_id, solvePoints, `Solved ${mission.issue_title} (${finalVerdict})`, mission.id);
-          await db.query('UPDATE users SET total_missions = total_missions + 1 WHERE id = $1', [mission.assignee_id]);
+          try {
+            await awardXP(db, mission.assignee_id, solvePoints, `Solved ${mission.issue_title} (${finalVerdict})`, mission.id);
+            await db.query('UPDATE users SET total_missions = total_missions + 1 WHERE id = $1', [mission.assignee_id]);
+          } catch (xpErr) {
+            console.error('[verify] XP award error (non-fatal):', xpErr.message);
+          }
 
-          // Notify solver
-          notifications.notifyXPAwarded(mission.assignee_id, solvePoints, `Mission completed: ${mission.issue_title}`);
-
-          // Notify of resolution
-          const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [mission.issue_id]);
-          const issue = issueRes.rows[0];
-          const resolverRes = await db.query('SELECT * FROM users WHERE id = $1', [mission.assignee_id]);
-          const resolver = resolverRes.rows[0];
-          notifications.notifyIssueResolved(issue, resolver);
+          // Notifications — wrapped so they never block the response
+          try {
+            notifications.notifyXPAwarded(mission.assignee_id, solvePoints, `Mission completed: ${mission.issue_title}`);
+            const issueRes = await db.query('SELECT * FROM issues WHERE id = $1', [mission.issue_id]);
+            const resolverRes = await db.query('SELECT * FROM users WHERE id = $1', [mission.assignee_id]);
+            if (issueRes.rows[0] && resolverRes.rows[0]) {
+              notifications.notifyIssueResolved(issueRes.rows[0], resolverRes.rows[0]);
+            }
+          } catch (notifErr) {
+            console.error('[verify] Notification error (non-fatal):', notifErr.message);
+          }
         }
       }
     }
@@ -370,12 +423,13 @@ router.post('/:id/verify', requireAuth, async (req, res) => {
       success: true,
       verdict,
       totalVerifications: totalVerifs,
+      verificationCount: totalVerifs,
       missionCompleted,
       finalVerdict,
       pointsAwarded: VERIFICATION_REWARD,
       message: missionCompleted
         ? `✅ Mission verified as ${finalVerdict}! The solver has been rewarded.`
-        : `Verification recorded! ${3 - totalVerifs > 0 ? (3 - totalVerifs) + ' more needed for auto-completion.' : ''}`
+        : `Verification recorded! ${Math.max(0, 2 - totalVerifs)} more needed for completion.`
     });
   } catch (err) {
     console.error('Verify mission error:', err);
@@ -390,6 +444,43 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isSameLocation(userCity, userArea, mAddress, mReporterArea) {
+  const verArea = (userArea || '').toLowerCase().trim();
+  const verCity = (userCity || '').toLowerCase().trim();
+  
+  if (!verArea && !verCity) return false;
+
+  const isUserInRaigad = verArea.includes('raigad') || verCity.includes('alibag') || verArea.includes('alibag') || verCity.includes('raigad');
+  const isUserInVasai = verArea.includes('vasai') || verCity.includes('vasai') || verArea.includes('naigaon') || verCity.includes('naigaon') || verArea.includes('virar') || verCity.includes('virar');
+  const isUserInNorthGoa = verArea.includes('north goa') || verCity.includes('panaji') || verCity.includes('panjim') || verCity.includes('mapusa');
+  const isUserInSouthGoa = verArea.includes('south goa') || verCity.includes('margao') || verCity.includes('madgaon') || verCity.includes('vasco');
+
+  const mLoc = (mAddress || '').toLowerCase();
+  const mRepArea = (mReporterArea || '').toLowerCase();
+
+  const isIssueInRaigad = mLoc.includes('alibag') || mLoc.includes('raigad') || mRepArea.includes('raigad') || mRepArea.includes('alibag');
+  const isIssueInVasai = mLoc.includes('vasai') || mLoc.includes('virar') || mLoc.includes('naigaon') || mLoc.includes('umela') || mRepArea.includes('vasai') || mRepArea.includes('virar') || mRepArea.includes('naigaon') || mRepArea.includes('umela');
+  const isIssueInNorthGoa = mLoc.includes('north goa') || mLoc.includes('panaji') || mLoc.includes('panjim') || mLoc.includes('mapusa') || mLoc.includes('calangute') || mRepArea.includes('north goa');
+  const isIssueInSouthGoa = mLoc.includes('south goa') || mLoc.includes('margao') || mLoc.includes('madgaon') || mLoc.includes('vasco') || mLoc.includes('mormugao') || mRepArea.includes('south goa');
+
+  if (isUserInRaigad && isIssueInRaigad) return true;
+  if (isUserInVasai && isIssueInVasai) return true;
+  if (isUserInNorthGoa && isIssueInNorthGoa) return true;
+  if (isUserInSouthGoa && isIssueInSouthGoa) return true;
+
+  // Goa general state-wide grouping fallback
+  const isUserInGoa = verArea.includes('goa') || verCity.includes('goa');
+  const isIssueInGoa = mLoc.includes('goa') || mRepArea.includes('goa');
+  if (isUserInGoa && isIssueInGoa) return true;
+
+  // Fallback to basic string match
+  const isMatchArea = verArea && mRepArea.includes(verArea);
+  const isMatchLoc = verArea && mLoc.includes(verArea);
+  if (isMatchArea || isMatchLoc) return true;
+
+  return false;
 }
 
 module.exports = router;

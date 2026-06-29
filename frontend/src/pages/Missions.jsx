@@ -16,7 +16,8 @@ import {
   Check,
   RefreshCw,
   Eye,
-  AlertCircle
+  AlertCircle,
+  UploadCloud
 } from 'lucide-react';
 
 /* ── CUSTOM CARTOON SVG ILLUSTRATIONS (BEFORE & AFTER STATES) ─────── */
@@ -170,7 +171,7 @@ export const BrokenLightIllustration = ({ repaired = false }) => (
 export default function Missions() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hero, addXp, missions, updateMissionStatus, refreshMissions, missionToast, clearMissionToast } = useGame();
+  const { hero, addXp, missions, updateMissionStatus, refreshMissions, refreshHero, missionToast, clearMissionToast } = useGame();
 
   // State Machine: 'list' | 'details' | 'capture_before' | 'capture_after' | 'verification' | 'success'
   const [view, setView] = useState('list');
@@ -259,12 +260,50 @@ export default function Missions() {
   const [resolutionStatus, setResolutionStatus] = useState('Fully Resolved');
   const [earnedXp, setEarnedXp] = useState(0);
 
+  // Keep selectedMission in sync with the global missions list (so myVerdict/status updates after refresh propagate)
+  useEffect(() => {
+    if (selectedMission && view === 'details') {
+      const freshMission = missions.find(m => m.id === selectedMission.id);
+      if (freshMission) {
+        setSelectedMission(prev => ({
+          ...freshMission,
+          // Preserve local overrides: if local myVerdict is set but fresh one isn't (lag), keep local
+          myVerdict: freshMission.myVerdict || prev.myVerdict,
+          // Take the higher count (never downgrade an optimistic increment)
+          verificationCount: Math.max(freshMission.verificationCount || 0, prev.verificationCount || 0),
+          status: freshMission.status === 'completed' ? 'completed' : (prev.status === 'completed' ? 'completed' : freshMission.status)
+        }));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missions]);
+
+
+  // Poll every 4s while details are open on a mission awaiting verification
+  useEffect(() => {
+    if (view !== 'details' || !selectedMission) return;
+    if (selectedMission.status !== 'Awaiting Community Verification') return;
+
+    const interval = setInterval(() => {
+      refreshMissions();
+    }, 4000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, selectedMission?.status, selectedMission?.id]);
+
   // Camera states & fallbacks
   const [cameraStream, setCameraStream] = useState(null);
   const [beforePhoto, setBeforePhoto] = useState(null);
   const [afterPhoto, setAfterPhoto] = useState(null);
   const [cameraError, setCameraError] = useState(false);
   const [shutterFlash, setShutterFlash] = useState(false);
+
+  // File upload states
+  const [beforeFile, setBeforeFile] = useState(null);
+  const [afterFile, setAfterFile] = useState(null);
+  const [beforeFilePreview, setBeforeFilePreview] = useState(null);
+  const [afterFilePreview, setAfterFilePreview] = useState(null);
+  const [uploadMethod, setUploadMethod] = useState('choice'); // 'choice' | 'camera' | 'file'
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -361,14 +400,47 @@ export default function Missions() {
         setSeverity('Medium');
       }
       setView('details');
+      // Refresh missions so we get the latest verificationCount from DB
+      refreshMissions();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to accept mission');
     }
   };
 
   const handleStartVerification = async () => {
-    setView('capture_before');
-    await startCamera();
+    try {
+      if (selectedMission && selectedMission.status === 'Active') {
+        await api.acceptMission(selectedMission.id);
+        setSelectedMission(prev => ({
+          ...prev,
+          status: 'Accepted',
+          assigneeId: hero.id
+        }));
+        updateMissionStatus(selectedMission.id, 'Accepted');
+      }
+      setView('capture_before');
+      setUploadMethod('choice');
+      setBeforeFile(null);
+      setBeforeFilePreview(null);
+      setAfterFile(null);
+      setAfterFilePreview(null);
+    } catch (err) {
+      alert(err.response?.data?.error || err.message || 'Failed to accept mission for verification');
+    }
+  };
+
+  const handleFileSelected = (file) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (view === 'capture_before') {
+        setBeforeFile(file);
+        setBeforeFilePreview(reader.result);
+      } else {
+        setAfterFile(file);
+        setAfterFilePreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const [isUploading, setIsUploading] = useState(false);
@@ -388,13 +460,13 @@ export default function Missions() {
     if (view === 'capture_before') {
       setIsUploading(true);
       try {
-        const dummyBlob = await createDummyBlob();
-        await api.uploadBeforePhoto(selectedMission.id, dummyBlob);
+        const photoToUpload = beforeFile || await createDummyBlob();
+        await api.uploadBeforePhoto(selectedMission.id, photoToUpload);
         setBeforePhoto(true);
         setTimeout(() => {
           stopCamera();
           setView('capture_after');
-          startCamera();
+          setUploadMethod('choice');
         }, 1000);
       } catch (e) {
         console.error("Before photo upload failed", e);
@@ -403,8 +475,8 @@ export default function Missions() {
     } else if (view === 'capture_after') {
       setIsUploading(true);
       try {
-        const dummyBlob = await createDummyBlob();
-        const result = await api.uploadAfterPhoto(selectedMission.id, dummyBlob);
+        const photoToUpload = afterFile || await createDummyBlob();
+        const result = await api.uploadAfterPhoto(selectedMission.id, photoToUpload);
         
         setAfterPhoto(true);
         // The backend `uploadAfterPhoto` returns { mission, comparison, pointsAwarded }
@@ -413,15 +485,20 @@ export default function Missions() {
           stopCamera();
           
           if (result && result.comparison) {
-             const status = result.comparison.verdict === 'resolved' 
+             const normVerdict = (result.comparison.verdict || '').toLowerCase().replace('_', ' ');
+             const status = (normVerdict === 'resolved' || normVerdict === 'fully resolved') 
                ? 'Fully Resolved' 
-               : (result.comparison.verdict === 'partially_resolved' ? 'Partially Resolved' : 'Not Resolved');
+               : (normVerdict === 'partially resolved' ? 'Partially Resolved' : 'Not Resolved');
              setResolutionStatus(status);
-             setEarnedXp(result.pointsAwarded || 0);
+             setEarnedXp(result.pointsAwarded || result.comparison?.estimatedReward || selectedMission.aiAnalysis?.estimatedReward || 100);
              if (status === 'Not Resolved') {
                setView('details');
                setBeforePhoto(null);
                setAfterPhoto(null);
+               setBeforeFile(null);
+               setBeforeFilePreview(null);
+               setAfterFile(null);
+               setAfterFilePreview(null);
              } else {
                setView('success');
              }
@@ -438,7 +515,6 @@ export default function Missions() {
       }
     }
   };
-
   // Resolution selection on the Verification Slide (Legacy / manual fallback)
   const handleSelectResolution = (status) => {
     const baseBounty = 0;
@@ -466,20 +542,43 @@ export default function Missions() {
   };
 
   const handleVote = async (verdict) => {
+    // Optimistically update the UI immediately — hide buttons and show verdict
+    setSelectedMission(prev => ({
+      ...prev,
+      myVerdict: verdict,
+      verificationCount: (prev.verificationCount || 0) + 1  // optimistic increment
+    }));
+
     try {
       const res = await api.verifyMission(selectedMission.backendId, verdict);
       if (res.pointsAwarded) {
         addXp(res.pointsAwarded);
-        alert(`You earned ${res.pointsAwarded} XP for verifying!`);
-      } else {
-        alert('Vote recorded successfully.');
       }
-      setView('list');
-      refreshMissions();
+      // Apply backend-confirmed state
+      setSelectedMission(prev => ({
+        ...prev,
+        status: res?.missionCompleted ? 'completed' : prev.status,
+        myVerdict: verdict,
+        // Use the confirmed DB count (takes priority over optimistic count)
+        verificationCount: res.verificationCount ?? prev.verificationCount
+      }));
+      await refreshHero();
+      await refreshMissions();
+      // If mission got completed by this vote, remove it from the list and go back
+      if (res?.missionCompleted) {
+        updateMissionStatus(selectedMission.id, 'completed');
+        setEarnedXp(res.pointsAwarded || 0);
+        setTimeout(() => {
+          setView('list');
+        }, 2500); // Show the "Quest Accomplished" banner briefly, then go back
+      }
     } catch (err) {
-      alert(err.message || 'Failed to submit vote');
+      // Error — keep the optimistic verdict so buttons stay hidden
+      console.warn('Vote error (verdict kept):', err.message);
+      await refreshMissions();
     }
   };
+
 
   const getIllustration = (type, repaired = false) => {
     switch (type) {
@@ -1076,10 +1175,10 @@ export default function Missions() {
               <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 <div style={{ flex: 1, height: '120px', borderRadius: '8px', overflow: 'hidden', border: '3px solid #5C4033', position: 'relative' }}>
                   <div style={{ background: '#5C4033', color: '#F4E8C1', textAlign: 'center', fontSize: '0.7rem', padding: '2px 0' }}>BEFORE</div>
-                  {selectedMission.beforePhotoUrl ? (
+                  {selectedMission.photoUrl ? (
                     <>
                       <img 
-                        src={selectedMission.beforePhotoUrl} 
+                        src={selectedMission.photoUrl} 
                         alt="Before" 
                         style={{ width: '100%', height: 'calc(100% - 18px)', objectFit: 'cover' }} 
                         onError={(e) => {
@@ -1246,29 +1345,82 @@ export default function Missions() {
             flexDirection: 'column',
             gap: '10px'
           }}>
-            {selectedMission?.status === 'Awaiting Community Verification' ? (
+            {selectedMission?.status === 'completed' || selectedMission?.status === 'resolved' ? (
+              <div style={{ textAlign: 'center', color: '#5D8A46', fontSize: '1rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 0' }}>
+                <span>✨ QUEST ACCOMPLISHED!</span>
+                <span style={{ fontSize: '0.8rem', color: '#F4E8C1', fontWeight: 'normal' }}>
+                  This issue has been fully resolved and verified by the community.
+                </span>
+              </div>
+            ) : selectedMission?.status === 'Awaiting Community Verification' ? (
               hero?.id === selectedMission.assigneeId ? (
-                <div style={{ textAlign: 'center', color: '#D4AF37', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                  Awaiting community votes on your work...
+                <div style={{ textAlign: 'center', color: '#D4AF37', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span>Awaiting community verification...</span>
+                  <span style={{ fontSize: '0.78rem', color: '#C4A484', fontWeight: 'normal' }}>2 local heroes must confirm this repair.</span>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ textAlign: 'center', color: '#F4E8C1', fontSize: '0.85rem', marginBottom: '4px' }}>
-                    Verify this repair to earn XP!
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => handleVote('Fully Resolved')} className="medieval-btn-green" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
-                      ✅ Resolved
-                    </button>
-                    <button onClick={() => handleVote('Partially Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
-                      ⚠ Partial
-                    </button>
-                    <button onClick={() => handleVote('Not Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem', background: 'linear-gradient(to bottom, #8C2A2A, #5A1212)' }}>
-                      ❌ Not Resolved
-                    </button>
-                  </div>
+              ) : selectedMission.myVerdict ? (
+                <div style={{ textAlign: 'center', color: '#F4E8C1', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: '6px', padding: '4px 0' }}>
+                  <span>You marked this repair as:</span>
+                  <span style={{
+                    color: selectedMission.myVerdict === 'Fully Resolved' ? '#5D8A46' : selectedMission.myVerdict === 'Partially Resolved' ? '#9C512A' : '#B53F3F',
+                    textTransform: 'uppercase',
+                    fontSize: '1rem',
+                    letterSpacing: '0.5px'
+                  }}>
+                    {selectedMission.myVerdict === 'Fully Resolved' ? '✅ Resolved' : selectedMission.myVerdict === 'Partially Resolved' ? '⚠ Partially Resolved' : '❌ Not Resolved'}
+                  </span>
                 </div>
-              )
+              ) : (() => {
+                const verArea = localityName.toLowerCase().trim();
+                const verCity = (hero.city || '').toLowerCase().trim();
+                const mLoc = (selectedMission.location || '').toLowerCase();
+                const mRepArea = (selectedMission.reporterArea || '').toLowerCase();
+
+                const isUserInRaigad = verArea.includes('raigad') || verCity.includes('alibag') || verArea.includes('alibag') || verCity.includes('raigad');
+                const isUserInVasai = verArea.includes('vasai') || verCity.includes('vasai') || verArea.includes('naigaon') || verCity.includes('naigaon') || verArea.includes('virar') || verCity.includes('virar');
+                const isUserInNorthGoa = verArea.includes('north goa') || verCity.includes('panaji') || verCity.includes('panjim') || verCity.includes('mapusa');
+                const isUserInSouthGoa = verArea.includes('south goa') || verCity.includes('margao') || verCity.includes('madgaon') || verCity.includes('vasco');
+
+                const isIssueInRaigad = mLoc.includes('alibag') || mLoc.includes('raigad') || mRepArea.includes('raigad') || mRepArea.includes('alibag');
+                const isIssueInVasai = mLoc.includes('vasai') || mLoc.includes('virar') || mLoc.includes('naigaon') || mLoc.includes('umela') || mRepArea.includes('vasai') || mRepArea.includes('virar') || mRepArea.includes('naigaon') || mRepArea.includes('umela');
+                const isIssueInNorthGoa = mLoc.includes('north goa') || mLoc.includes('panaji') || mLoc.includes('panjim') || mLoc.includes('mapusa') || mLoc.includes('calangute') || mRepArea.includes('north goa');
+                const isIssueInSouthGoa = mLoc.includes('south goa') || mLoc.includes('margao') || mLoc.includes('madgaon') || mLoc.includes('vasco') || mLoc.includes('mormugao') || mRepArea.includes('south goa');
+
+                let matchesLocation = false;
+                if (isUserInRaigad && isIssueInRaigad) matchesLocation = true;
+                else if (isUserInVasai && isIssueInVasai) matchesLocation = true;
+                else if (isUserInNorthGoa && isIssueInNorthGoa) matchesLocation = true;
+                else if (isUserInSouthGoa && isIssueInSouthGoa) matchesLocation = true;
+                else if ((verArea.includes('goa') || verCity.includes('goa')) && (mLoc.includes('goa') || mRepArea.includes('goa'))) matchesLocation = true;
+                else if (verArea && (mRepArea.includes(verArea) || mLoc.includes(verArea))) matchesLocation = true;
+
+                if (!matchesLocation) {
+                  return (
+                    <div style={{ textAlign: 'center', color: '#B53F3F', fontSize: '0.85rem', fontWeight: 'bold', padding: '6px 0' }}>
+                      Only heroes from this district/location are allowed to verify this mission.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ textAlign: 'center', color: '#F4E8C1', fontSize: '0.85rem', marginBottom: '4px' }}>
+                      Verify this repair to earn XP! <span style={{ color: '#D4AF37', fontWeight: 'bold' }}>({Math.min(selectedMission?.verificationCount || 0, 2)}/2 verified)</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => handleVote('Fully Resolved')} className="medieval-btn-green" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
+                        ✅ Resolved
+                      </button>
+                      <button onClick={() => handleVote('Partially Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}>
+                        ⚠ Partial
+                      </button>
+                      <button onClick={() => handleVote('Not Resolved')} className="medieval-btn-brown" style={{ flex: 1, padding: '8px', fontSize: '0.8rem', background: 'linear-gradient(to bottom, #8C2A2A, #5A1212)' }}>
+                        ❌ Not Resolved
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <div style={{ display: 'flex', gap: '10px', width: '100%', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
@@ -1312,65 +1464,53 @@ export default function Missions() {
 
       {/* ── VIEWS 3 & 4: CAMERA CAPTURE (BEFORE & AFTER) ──────────────── */}
       {(view === 'capture_before' || view === 'capture_after') && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: '#000',
-          zIndex: 9999,
+        <div className="wood-panel" style={{
+          marginTop: '30px',
+          padding: '24px 18px 24px 18px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           boxSizing: 'border-box',
           fontFamily: "'MedievalSharp', serif",
+          position: 'relative'
         }}>
           {/* Shutter flash overlay effect */}
-          {shutterFlash && <div className="shutter-flash-overlay" />}
+          {shutterFlash && <div className="shutter-flash-overlay" style={{ borderRadius: '12px' }} />}
 
-          {/* Top Bar */}
-          <div style={{
-            width: '100%',
-            height: '64px',
-            background: 'rgba(10, 6, 4, 0.85)',
-            borderBottom: '2px solid #5C4033',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
-            boxSizing: 'border-box',
-            color: '#F4E8C1'
-          }}>
-            <button
-              onClick={() => {
-                stopCamera();
-                setView('details');
-              }}
-              style={{ background: 'transparent', border: 'none', color: '#F4E8C1', cursor: 'pointer' }}
-            >
-              <X size={26} />
-            </button>
-
-            <span style={{ fontSize: '1.25rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}>
-              {view === 'capture_before' ? 'Capture BEFORE Photo' : 'Capture AFTER Photo'}
-            </span>
-
-            <button
-              onClick={startCamera}
-              style={{ background: 'transparent', border: 'none', color: '#F4E8C1', cursor: 'pointer' }}
-              title="Reset Camera"
-            >
-              <RefreshCw size={22} />
-            </button>
+          {/* Carved stone title header */}
+          <div className="stone-header">
+            <span>{view === 'capture_before' ? 'Capture BEFORE Photo' : 'Capture AFTER Photo'}</span>
           </div>
+
+          {/* Close button top-right */}
+          <button
+            onClick={() => {
+              stopCamera();
+              setView('details');
+            }}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: '#C4A484',
+              cursor: 'pointer',
+              outline: 'none',
+              zIndex: 10
+            }}
+          >
+            <X size={26} />
+          </button>
 
           {/* Viewfinder Bounding Area */}
           <div style={{
-            flex: 1,
             width: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            padding: '20px',
+            padding: '20px 0',
             boxSizing: 'border-box'
           }}>
             <div style={{
@@ -1384,43 +1524,177 @@ export default function Missions() {
               background: '#2D1B13',
               boxShadow: '0 10px 30px rgba(0,0,0,0.8)'
             }}>
-              {!cameraError && cameraStream ? (
-                <video
-                  ref={(el) => {
-                    videoRef.current = el;
-                    if (el && cameraStream && el.srcObject !== cameraStream) {
-                      el.srcObject = cameraStream;
-                    }
-                  }}
-                  autoPlay
-                  playsInline
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                  <div style={{ width: '100%', height: '100%' }}>
-                    {selectedMission && getIllustration(selectedMission.type, view === 'capture_after')}
+              {uploadMethod === 'choice' && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '16px',
+                  height: '100%',
+                  padding: '24px',
+                  boxSizing: 'border-box'
+                }}>
+                  <Shield size={36} color="#D4AF37" style={{ marginBottom: '4px' }} />
+                  <div style={{ color: '#F4E8C1', fontSize: '0.95rem', fontWeight: 900, textAlign: 'center', fontFamily: "'MedievalSharp', serif", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Choose Verification
                   </div>
-
-                  <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'rgba(45, 27, 19, 0.45)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFF',
-                    fontWeight: 'bold',
-                    fontSize: '1rem',
-                    textAlign: 'center',
-                    padding: '20px',
-                    textShadow: '2px 2px 4px #000'
-                  }}>
-                    <span>[ Simulated Viewfinder ]<br />Click shutter below to capture</span>
-                  </div>
+                  <button
+                    onClick={async () => {
+                      setUploadMethod('camera');
+                      await startCamera();
+                    }}
+                    className="medieval-btn-green"
+                    style={{ width: '100%', padding: '10px', fontSize: '0.82rem', fontFamily: "'MedievalSharp', serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <Camera size={16} /> Live Camera
+                  </button>
+                  <button
+                    onClick={() => setUploadMethod('file')}
+                    className="medieval-btn-brown"
+                    style={{ width: '100%', padding: '10px', fontSize: '0.82rem', fontFamily: "'MedievalSharp', serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    <UploadCloud size={16} /> Upload Photo
+                  </button>
                 </div>
               )}
 
+              {uploadMethod === 'camera' && (
+                !cameraError && cameraStream ? (
+                  <video
+                    ref={(el) => {
+                      videoRef.current = el;
+                      if (el && cameraStream && el.srcObject !== cameraStream) {
+                        el.srcObject = cameraStream;
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    <div style={{ width: '100%', height: '100%' }}>
+                      {selectedMission && getIllustration(selectedMission.type, view === 'capture_after')}
+                    </div>
+
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(45, 27, 19, 0.45)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFF',
+                      fontWeight: 'bold',
+                      fontSize: '1rem',
+                      textAlign: 'center',
+                      padding: '20px',
+                      textShadow: '2px 2px 4px #000'
+                    }}>
+                      <span>[ Simulated Viewfinder ]<br />Click shutter below to capture</span>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {uploadMethod === 'file' && (
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file && file.type.startsWith('image/')) {
+                      handleFileSelected(file);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    padding: '20px',
+                    boxSizing: 'border-box',
+                    cursor: 'pointer',
+                    border: '2px dashed #7A4A22',
+                    margin: '12px',
+                    borderRadius: '8px',
+                    background: 'rgba(92, 64, 51, 0.15)',
+                    position: 'relative'
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) handleFileSelected(file);
+                    }}
+                  />
+                  {(view === 'capture_before' ? beforeFilePreview : afterFilePreview) ? (
+                    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', borderRadius: '4px' }}>
+                      <img src={view === 'capture_before' ? beforeFilePreview : afterFilePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Preview" />
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '8px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'rgba(0,0,0,0.7)',
+                        color: '#F4E8C1',
+                        fontSize: '0.75rem',
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        border: '1px solid #7A4A22',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Click to change photo
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <UploadCloud size={40} color="#D4AF37" style={{ marginBottom: '8px' }} />
+                      <span style={{ color: '#F4E8C1', fontSize: '0.85rem', fontWeight: 'bold', textAlign: 'center' }}>
+                        Drag & Drop Photo Here
+                      </span>
+                      <span style={{ color: '#A89880', fontSize: '0.7rem', marginTop: '4px', textAlign: 'center' }}>
+                        or click to browse archives
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {uploadMethod === 'camera' && (
+                <button
+                  onClick={startCamera}
+                  style={{
+                    position: 'absolute',
+                    top: '18px',
+                    left: '18px',
+                    background: 'rgba(30, 16, 6, 0.9)',
+                    border: '1.5px solid #7A4A22',
+                    borderRadius: '6px',
+                    color: '#F4E8C1',
+                    fontSize: '0.7rem',
+                    padding: '6px 8px',
+                    cursor: 'pointer',
+                    zIndex: 20,
+                    fontFamily: "'MedievalSharp', serif",
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.5)'
+                  }}
+                  title="Reset Camera"
+                >
+                  <RefreshCw size={12} /> Reset
+                </button>
+              )}
               <div className="viewfinder-corner vf-top-left" />
               <div className="viewfinder-corner vf-top-right" />
               <div className="viewfinder-corner vf-bottom-left" />
@@ -1431,42 +1705,83 @@ export default function Missions() {
           {/* Shutter Button Footer */}
           <div style={{
             width: '100%',
-            height: '140px',
-            background: 'rgba(10, 6, 4, 0.9)',
-            borderTop: '2px solid #5C4033',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '12px'
+            gap: '12px',
+            marginTop: '10px'
           }}>
-            <span style={{ fontSize: '0.85rem', color: '#B3A387', letterSpacing: '0.5px' }}>
+            <span style={{ fontSize: '0.85rem', color: '#5A4B3D', letterSpacing: '0.5px', fontWeight: 'bold' }}>
               {isUploading ? 'Uploading to Guild Archives...' : (view === 'capture_before' ? 'Capture the damaged anomaly' : 'Capture the resolved issue')}
             </span>
 
-            <button
-              onClick={handleCapturePhoto}
-              disabled={isUploading}
-              style={{
-                width: '72px',
-                height: '72px',
-                borderRadius: '50%',
-                background: isUploading ? '#666' : '#FFF',
-                border: '6px solid #4A4E69',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
-                cursor: isUploading ? 'not-allowed' : 'pointer',
-                outline: 'none',
-                transition: 'transform 0.1s',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              className="shutter-btn"
-              onMouseDown={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(0.92)')}
-              onMouseUp={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(1)')}
-            >
-              {isUploading && <RefreshCw className="spin" size={24} color="#FFF" />}
-            </button>
+            {uploadMethod === 'choice' ? (
+              <div style={{ color: '#8B7355', fontSize: '0.78rem', fontStyle: 'italic', height: '54px', display: 'flex', alignItems: 'center' }}>
+                Select a verification method above
+              </div>
+            ) : uploadMethod === 'file' ? (
+              <button
+                onClick={handleCapturePhoto}
+                disabled={isUploading || !(view === 'capture_before' ? beforeFile : afterFile)}
+                className="medieval-btn-green"
+                style={{ width: '220px', padding: '12px 20px', fontSize: '0.9rem', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', textTransform: 'uppercase', fontFamily: "'MedievalSharp', serif", fontWeight: 700 }}
+              >
+                {isUploading ? <><RefreshCw className="spin" size={16} style={{ marginRight: '8px' }} /> Processing…</> : 'Proceed with Photo'}
+              </button>
+            ) : (
+              <button
+                onClick={handleCapturePhoto}
+                disabled={isUploading}
+                style={{
+                  width: '72px',
+                  height: '72px',
+                  borderRadius: '50%',
+                  background: isUploading ? '#666' : '#FFF',
+                  border: '6px solid #4A4E69',
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
+                  cursor: isUploading ? 'not-allowed' : 'pointer',
+                  outline: 'none',
+                  transition: 'transform 0.1s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                className="shutter-btn"
+                onMouseDown={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(0.92)')}
+                onMouseUp={(e) => !isUploading && (e.currentTarget.style.transform = 'scale(1)')}
+              >
+                {isUploading && <RefreshCw className="spin" size={24} color="#FFF" />}
+              </button>
+            )}
+
+            {uploadMethod !== 'choice' && (
+              <button
+                onClick={() => {
+                  stopCamera();
+                  setUploadMethod('choice');
+                  setBeforeFile(null);
+                  setBeforeFilePreview(null);
+                  setAfterFile(null);
+                  setAfterFilePreview(null);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#8B5E34',
+                  textDecoration: 'underline',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  fontFamily: "'MedievalSharp', serif",
+                  fontWeight: 'bold',
+                  marginTop: '6px',
+                  outline: 'none'
+                }}
+              >
+                Change Verification Method
+              </button>
+            )}
+
             <style>
               {`
                 .spin { animation: spin 1s linear infinite; }

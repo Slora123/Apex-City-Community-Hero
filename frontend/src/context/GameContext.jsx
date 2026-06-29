@@ -153,7 +153,9 @@ export const GameProvider = ({ children }) => {
           assigneeId: m.assignee_id,
           reporter_count: m.reporter_count,
           reporterArea: m.reporter_area || '',
-          reporterId: m.reporter_id || ''
+          reporterId: m.reporter_id || '',
+          myVerdict: m.myVerdict || null,
+          verificationCount: parseInt(m.verification_count || 0, 10)
         }));
         setMissions(mapped);
         setIsBackendOnline(true);
@@ -245,8 +247,14 @@ export const GameProvider = ({ children }) => {
 
   // ── Update mission status locally ──────────────────────────────────────
   const updateMissionStatus = (id, newStatus) => {
-    setMissions(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
+    if (newStatus === 'completed' || newStatus === 'rejected') {
+      // Remove completed/rejected missions from the list immediately
+      setMissions(prev => prev.filter(m => m.id !== id));
+    } else {
+      setMissions(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
+    }
   };
+
 
   // ── Report issue — strictly calls backend API ────────────────────────
   const reportIssue = async (newIssue, photoFile = null) => {
